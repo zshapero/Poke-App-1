@@ -29,11 +29,15 @@ const PLATFORM_FILTERS = [
 ] as const;
 type PlatformFilter = (typeof PLATFORM_FILTERS)[number];
 
+const TYPE_FILTERS = ['All', 'Raw', 'Graded'] as const;
+type TypeFilter = (typeof TYPE_FILTERS)[number];
+
 export default function SalesScreen() {
   const db = useSQLiteContext();
   const [sales, setSales] = useState<SaleWithItem[]>([]);
   const [search, setSearch] = useState('');
   const [platformFilter, setPlatformFilter] = useState<PlatformFilter>('All');
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>('All');
 
   useFocusEffect(
     useCallback(() => {
@@ -43,7 +47,8 @@ export default function SalesScreen() {
           `SELECT sales.*,
                   items.name AS item_name,
                   items."set" AS item_set,
-                  items.cost_basis AS item_cost_basis
+                  items.cost_basis AS item_cost_basis,
+                  items.is_graded AS item_is_graded
            FROM sales
            LEFT JOIN items ON items.id = sales.item_id
            ORDER BY sold_date DESC, sales.id DESC`
@@ -60,10 +65,12 @@ export default function SalesScreen() {
     const q = search.trim().toLowerCase();
     return sales.filter((s) => {
       if (platformFilter !== 'All' && s.platform !== platformFilter) return false;
+      if (typeFilter === 'Raw' && s.item_is_graded === 1) return false;
+      if (typeFilter === 'Graded' && s.item_is_graded !== 1) return false;
       if (q && !(s.item_name?.toLowerCase().includes(q) ?? false)) return false;
       return true;
     });
-  }, [sales, search, platformFilter]);
+  }, [sales, search, platformFilter, typeFilter]);
 
   const stats = useMemo(() => {
     const totalProfit = sales.reduce((sum, s) => sum + (s.net_profit ?? 0), 0);
@@ -135,6 +142,25 @@ export default function SalesScreen() {
                 <ThemedText
                   style={active ? styles.chipTextActive : styles.chipText}>
                   {p}
+                </ThemedText>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.chipsRow}>
+          {TYPE_FILTERS.map((t) => {
+            const active = t === typeFilter;
+            return (
+              <Pressable
+                key={t}
+                onPress={() => setTypeFilter(t)}
+                style={[styles.chip, active && styles.chipActive]}>
+                <ThemedText style={active ? styles.chipTextActive : styles.chipText}>
+                  {t}
                 </ThemedText>
               </Pressable>
             );

@@ -53,7 +53,8 @@ export default function DashboardScreen() {
             `SELECT sales.*,
                     items.name AS item_name,
                     items."set" AS item_set,
-                    items.cost_basis AS item_cost_basis
+                    items.cost_basis AS item_cost_basis,
+                    items.is_graded AS item_is_graded
              FROM sales
              LEFT JOIN items ON items.id = sales.item_id
              ORDER BY sold_date DESC, sales.id DESC`

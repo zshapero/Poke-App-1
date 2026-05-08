@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -15,8 +16,8 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import type { Item } from '@/db/schema';
-import { getMarketPrice, searchCard } from '@/lib/api/pokemontcg';
-import { formatMoney, formatSignedMoney } from '@/lib/format';
+import { getCardById, getMarketPrice, searchCard } from '@/lib/api/pokemontcg';
+import { formatMoney, formatSignedMoney, sanitizeMoneyInput } from '@/lib/format';
 import { showToast } from '@/lib/toast';
 
 const SOURCE_FILTERS = [
@@ -30,14 +31,44 @@ const SOURCE_FILTERS = [
 ] as const;
 type SourceFilter = (typeof SOURCE_FILTERS)[number];
 
+const TYPE_FILTERS = ['All', 'Raw', 'Graded'] as const;
+type TypeFilter = (typeof TYPE_FILTERS)[number];
+
 const ACTIVE_QUERY = 'SELECT * FROM items WHERE status = ? ORDER BY id DESC';
+
+type GradeBadgeStyle = { backgroundColor: string; color: string };
+
+function gradeBadgeStyle(company: string | null | undefined): GradeBadgeStyle {
+  switch (company) {
+    case 'PSA':
+      return { backgroundColor: '#fee2e2', color: '#b91c1c' };
+    case 'CGC':
+      return { backgroundColor: '#dbeafe', color: '#1e40af' };
+    case 'BGS':
+      return { backgroundColor: '#e5e7eb', color: '#475569' };
+    case 'SGC':
+      return { backgroundColor: '#dcfce7', color: '#15803d' };
+    default:
+      return { backgroundColor: '#f3f4f6', color: '#374151' };
+  }
+}
+
+function formatGradeLabel(item: Item): string | null {
+  if (item.is_graded !== 1 || !item.grading_company) return null;
+  if (item.grade != null) return `${item.grading_company} ${item.grade}`;
+  return item.grading_company;
+}
 
 export default function PortfolioScreen() {
   const db = useSQLiteContext();
   const [items, setItems] = useState<Item[]>([]);
   const [search, setSearch] = useState('');
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>('All');
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>('All');
   const [refreshing, setRefreshing] = useState(false);
+
+  const [priceEditorItem, setPriceEditorItem] = useState<Item | null>(null);
+  const [priceEditorValue, setPriceEditorValue] = useState('');
 
   const refetchItems = useCallback(async () => {
     const rows = await db.getAllAsync<Item>(ACTIVE_QUERY, ['active']);
@@ -61,10 +92,12 @@ export default function PortfolioScreen() {
     const q = search.trim().toLowerCase();
     return items.filter((item) => {
       if (sourceFilter !== 'All' && item.source !== sourceFilter) return false;
+      if (typeFilter === 'Raw' && item.is_graded === 1) return false;
+      if (typeFilter === 'Graded' && item.is_graded !== 1) return false;
       if (q && !item.name.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [items, search, sourceFilter]);
+  }, [items, search, sourceFilter, typeFilter]);
 
   const totalInvested = useMemo(
     () => items.reduce((sum, i) => sum + (i.cost_basis ?? 0), 0),
@@ -73,32 +106,68 @@ export default function PortfolioScreen() {
 
   const onRefreshPrices = async () => {
     if (refreshing || items.length === 0) return;
+    const rawItems = items.filter((i) => i.is_graded !== 1);
+    if (rawItems.length === 0) {
+      showToast('No raw items to refresh');
+      return;
+    }
     setRefreshing(true);
     let updated = 0;
     let networkErrored = false;
-    for (const item of items) {
-      if (!item.name?.trim() || !item.set?.trim()) continue;
+    for (const item of rawItems) {
+      let price: number | null = null;
       try {
-        const cards = await searchCard(item.name, item.set);
-        if (cards.length === 0) continue;
-        const price = getMarketPrice(cards[0]);
-        if (price == null) continue;
-        await db.runAsync('UPDATE items SET current_price = ? WHERE id = ?', [
-          price,
-          item.id,
-        ]);
-        updated++;
+        if (item.tcg_card_id) {
+          const card = await getCardById(item.tcg_card_id);
+          if (card) price = getMarketPrice(card);
+        } else if (item.name?.trim() && item.set?.trim()) {
+          const cards = await searchCard(item.name, item.set);
+          if (cards.length > 0) price = getMarketPrice(cards[0]);
+        }
       } catch {
         networkErrored = true;
+        continue;
       }
+      if (price == null) continue;
+      await db.runAsync('UPDATE items SET current_price = ? WHERE id = ?', [
+        price,
+        item.id,
+      ]);
+      updated++;
     }
     setRefreshing(false);
     if (networkErrored && updated === 0) {
       showToast('Could not reach price service');
     } else {
-      showToast(`Updated ${updated} of ${items.length} items`);
+      showToast(`Updated ${updated} of ${rawItems.length} items`);
     }
     await refetchItems();
+  };
+
+  const openPriceEditor = (item: Item) => {
+    setPriceEditorItem(item);
+    setPriceEditorValue(item.current_price != null ? item.current_price.toFixed(2) : '');
+  };
+
+  const closePriceEditor = () => {
+    setPriceEditorItem(null);
+    setPriceEditorValue('');
+  };
+
+  const savePriceEditor = async () => {
+    if (!priceEditorItem) return;
+    const value = parseFloat(priceEditorValue);
+    if (Number.isNaN(value) || value < 0) {
+      showToast('Enter a valid price');
+      return;
+    }
+    await db.runAsync('UPDATE items SET current_price = ? WHERE id = ?', [
+      value,
+      priceEditorItem.id,
+    ]);
+    closePriceEditor();
+    await refetchItems();
+    showToast('Price updated');
   };
 
   return (
@@ -169,6 +238,25 @@ export default function PortfolioScreen() {
             );
           })}
         </ScrollView>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.chipsRow}>
+          {TYPE_FILTERS.map((t) => {
+            const active = t === typeFilter;
+            return (
+              <Pressable
+                key={t}
+                onPress={() => setTypeFilter(t)}
+                style={[styles.chip, active && styles.chipActive]}>
+                <ThemedText style={active ? styles.chipTextActive : styles.chipText}>
+                  {t}
+                </ThemedText>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
       </View>
 
       <View style={styles.listWrap}>
@@ -184,7 +272,9 @@ export default function PortfolioScreen() {
                 : 'No items match your search or filter.'}
             </ThemedText>
           }
-          renderItem={({ item }) => <ItemRow item={item} />}
+          renderItem={({ item }) => (
+            <ItemRow item={item} onEditPrice={() => openPriceEditor(item)} />
+          )}
         />
         {refreshing && (
           <View style={styles.refreshOverlay}>
@@ -195,48 +285,121 @@ export default function PortfolioScreen() {
           </View>
         )}
       </View>
+
+      <Modal
+        visible={priceEditorItem !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={closePriceEditor}>
+        <Pressable style={styles.backdrop} onPress={closePriceEditor}>
+          <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+            <ThemedText type="defaultSemiBold" style={styles.sheetTitle}>
+              Update market price
+            </ThemedText>
+            {priceEditorItem ? (
+              <ThemedText style={styles.sheetSubtitle}>{priceEditorItem.name}</ThemedText>
+            ) : null}
+            <View style={styles.moneyRow}>
+              <ThemedText style={styles.moneyPrefix}>$</ThemedText>
+              <TextInput
+                value={priceEditorValue}
+                onChangeText={(t) => setPriceEditorValue(sanitizeMoneyInput(t))}
+                placeholder="0.00"
+                placeholderTextColor="#999"
+                keyboardType="decimal-pad"
+                style={styles.moneyInput}
+                autoFocus
+              />
+            </View>
+            <View style={styles.sheetButtonRow}>
+              <Pressable onPress={closePriceEditor} style={styles.sheetCancel}>
+                <ThemedText style={styles.sheetCancelText}>Cancel</ThemedText>
+              </Pressable>
+              <Pressable onPress={savePriceEditor} style={styles.sheetSave}>
+                <ThemedText style={styles.sheetSaveText}>Save</ThemedText>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </ThemedView>
   );
 }
 
-function ItemRow({ item }: { item: Item }) {
+function ItemRow({
+  item,
+  onEditPrice,
+}: {
+  item: Item;
+  onEditPrice: () => void;
+}) {
   const profit =
     item.current_price != null && item.cost_basis != null
       ? item.current_price - item.cost_basis
       : null;
   const profitPositive = profit != null && profit > 0;
   const profitNegative = profit != null && profit < 0;
+  const gradeLabel = formatGradeLabel(item);
+  const badge = gradeBadgeStyle(item.grading_company);
+
   return (
     <Link href={{ pathname: '/item/[id]', params: { id: String(item.id) } }} asChild>
       <Pressable
         style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}>
         <View style={styles.rowLeft}>
-          <ThemedText type="defaultSemiBold">{item.name}</ThemedText>
+          <View style={styles.nameRow}>
+            <ThemedText type="defaultSemiBold" style={styles.nameText} numberOfLines={1}>
+              {item.name}
+            </ThemedText>
+            {gradeLabel ? (
+              <View style={[styles.gradeBadge, { backgroundColor: badge.backgroundColor }]}>
+                <ThemedText style={[styles.gradeBadgeText, { color: badge.color }]}>
+                  {gradeLabel}
+                </ThemedText>
+              </View>
+            ) : null}
+          </View>
           {item.set ? <ThemedText>{item.set}</ThemedText> : null}
           <ThemedText style={styles.costBasisSmall}>
             Cost {formatMoney(item.cost_basis)}
           </ThemedText>
         </View>
         <View style={styles.rowRight}>
-          {item.current_price != null ? (
-            <>
+          <View style={styles.priceLine}>
+            {item.current_price != null ? (
               <ThemedText type="defaultSemiBold" style={styles.priceValue}>
                 {formatMoney(item.current_price)}
               </ThemedText>
-              {profit != null && (
-                <ThemedText
-                  style={[
-                    styles.profit,
-                    profitPositive && styles.profitPositive,
-                    profitNegative && styles.profitNegative,
-                  ]}>
-                  {formatSignedMoney(profit)}
-                </ThemedText>
-              )}
-            </>
-          ) : (
-            <ThemedText style={styles.priceValue}>—</ThemedText>
-          )}
+            ) : (
+              <ThemedText style={styles.priceValue}>—</ThemedText>
+            )}
+            {item.is_graded === 1 ? (
+              <Pressable
+                onPress={(e) => {
+                  e.stopPropagation();
+                  onEditPrice();
+                }}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Update market price"
+                style={({ pressed }) => [
+                  styles.pencilButton,
+                  pressed && styles.pencilButtonPressed,
+                ]}>
+                <IconSymbol name="pencil" size={14} color="#0a7ea4" />
+              </Pressable>
+            ) : null}
+          </View>
+          {item.current_price != null && profit != null ? (
+            <ThemedText
+              style={[
+                styles.profit,
+                profitPositive && styles.profitPositive,
+                profitNegative && styles.profitNegative,
+              ]}>
+              {formatSignedMoney(profit)}
+            </ThemedText>
+          ) : null}
         </View>
       </Pressable>
     </Link>
@@ -305,7 +468,21 @@ const styles = StyleSheet.create({
   },
   rowPressed: { opacity: 0.7 },
   rowLeft: { flex: 1, gap: 2 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+  nameText: { flexShrink: 1 },
+  gradeBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 999,
+  },
+  gradeBadgeText: { fontSize: 11, fontWeight: '700' },
   rowRight: { alignItems: 'flex-end', gap: 2 },
+  priceLine: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  pencilButton: {
+    padding: 4,
+    borderRadius: 4,
+  },
+  pencilButtonPressed: { opacity: 0.5 },
   costBasisSmall: { fontSize: 13, marginTop: 2 },
   priceValue: { fontSize: 16 },
   profit: { fontSize: 14, fontWeight: '600' },
@@ -324,4 +501,49 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   refreshOverlayText: { fontSize: 14 },
+  backdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  sheet: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    gap: 12,
+  },
+  sheetTitle: { fontSize: 16 },
+  sheetSubtitle: { fontSize: 14 },
+  moneyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#fff',
+    minHeight: 46,
+  },
+  moneyPrefix: { fontSize: 16, color: '#111', marginRight: 6 },
+  moneyInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#111',
+    paddingVertical: 12,
+  },
+  sheetButtonRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 12,
+  },
+  sheetCancel: { paddingVertical: 10, paddingHorizontal: 12 },
+  sheetCancelText: { fontSize: 15 },
+  sheetSave: {
+    backgroundColor: '#0a7ea4',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+  },
+  sheetSaveText: { color: '#fff', fontSize: 15, fontWeight: '600' },
 });

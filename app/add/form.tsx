@@ -1,7 +1,7 @@
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -12,38 +12,68 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   TextInput,
   View,
 } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import type { Item } from '@/db/schema';
+import type { GradingCompany, Item } from '@/db/schema';
 import {
   formatDateForDisplay,
   sanitizeMoneyInput,
   toIsoDate,
 } from '@/lib/format';
+import { consumePendingCard, type PendingCardPrefill } from '@/lib/pendingCard';
 import { showToast } from '@/lib/toast';
 
 const SOURCES = ['Box Pull', 'Single Buy', 'Bulk', 'Estate Sale', 'Trade', 'Other'] as const;
 type Source = (typeof SOURCES)[number];
 
-export default function AddItemScreen() {
+const GRADING_COMPANIES: readonly GradingCompany[] = [
+  'PSA',
+  'CGC',
+  'BGS',
+  'SGC',
+  'ACE',
+  'Other',
+] as const;
+
+function isHalfStep(value: number): boolean {
+  return Math.abs(value * 2 - Math.round(value * 2)) < 1e-9;
+}
+
+export default function AddItemFormScreen() {
   const db = useSQLiteContext();
   const router = useRouter();
   const { id: idParam } = useLocalSearchParams<{ id?: string }>();
   const editingId = idParam ? Number(idParam) : null;
   const isEdit = editingId !== null && !Number.isNaN(editingId);
 
-  const [name, setName] = useState('');
-  const [setName_, setSetName] = useState('');
+  const prefill = useMemo<PendingCardPrefill | null>(
+    () => (isEdit ? null : consumePendingCard()),
+    [isEdit]
+  );
+
+  const [name, setName] = useState(prefill?.name ?? '');
+  const [setName_, setSetName] = useState(prefill?.set ?? '');
   const [costBasis, setCostBasis] = useState('');
   const [acquiredDate, setAcquiredDate] = useState<Date>(() => new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [source, setSource] = useState<Source | null>(null);
   const [sourceModalOpen, setSourceModalOpen] = useState(false);
-  const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [photoUri, setPhotoUri] = useState<string | null>(prefill?.photo_uri ?? null);
+  const [tcgCardId, setTcgCardId] = useState<string | null>(prefill?.tcg_card_id ?? null);
+  const [tcgSetId, setTcgSetId] = useState<string | null>(prefill?.tcg_set_id ?? null);
+  const [autoPrice, setAutoPrice] = useState<number | null>(prefill?.current_price ?? null);
+
+  const [isGraded, setIsGraded] = useState(false);
+  const [gradingCompany, setGradingCompany] = useState<GradingCompany | null>(null);
+  const [gradingModalOpen, setGradingModalOpen] = useState(false);
+  const [grade, setGrade] = useState('');
+  const [manualPrice, setManualPrice] = useState('');
+
   const [saving, setSaving] = useState(false);
   const [hydrated, setHydrated] = useState(!isEdit);
 
@@ -70,6 +100,21 @@ export default function AddItemScreen() {
         setSource(row.source as Source);
       }
       setPhotoUri(row.photo_uri);
+      setTcgCardId(row.tcg_card_id);
+      setTcgSetId(row.tcg_set_id);
+      if (row.is_graded === 1) {
+        setIsGraded(true);
+        if (
+          row.grading_company &&
+          (GRADING_COMPANIES as readonly string[]).includes(row.grading_company)
+        ) {
+          setGradingCompany(row.grading_company as GradingCompany);
+        }
+        setGrade(row.grade != null ? String(row.grade) : '');
+        setManualPrice(row.current_price != null ? row.current_price.toFixed(2) : '');
+      } else {
+        setAutoPrice(row.current_price);
+      }
       setHydrated(true);
     })();
     return () => {
@@ -79,14 +124,24 @@ export default function AddItemScreen() {
 
   const canSave = useMemo(() => {
     const cost = parseFloat(costBasis);
-    return (
-      name.trim().length > 0 &&
-      setName_.trim().length > 0 &&
-      costBasis.length > 0 &&
-      !Number.isNaN(cost) &&
-      cost >= 0
-    );
-  }, [name, setName_, costBasis]);
+    if (
+      name.trim().length === 0 ||
+      setName_.trim().length === 0 ||
+      costBasis.length === 0 ||
+      Number.isNaN(cost) ||
+      cost < 0
+    ) {
+      return false;
+    }
+    if (isGraded) {
+      if (!gradingCompany) return false;
+      const g = parseFloat(grade);
+      if (Number.isNaN(g) || g < 1 || g > 10 || !isHalfStep(g)) return false;
+      const p = parseFloat(manualPrice);
+      if (Number.isNaN(p) || p < 0) return false;
+    }
+    return true;
+  }, [name, setName_, costBasis, isGraded, gradingCompany, grade, manualPrice]);
 
   const onDateChange = (event: DateTimePickerEvent, selected?: Date) => {
     if (Platform.OS !== 'ios') setShowDatePicker(false);
@@ -134,18 +189,31 @@ export default function AddItemScreen() {
     if (!canSave || saving) return;
     setSaving(true);
     try {
+      const cost = parseFloat(costBasis);
+      const finalPrice = isGraded ? parseFloat(manualPrice) : autoPrice;
+      const finalGradingCompany = isGraded ? gradingCompany : null;
+      const finalGrade = isGraded ? parseFloat(grade) : null;
+
       if (isEdit && editingId !== null) {
         await db.runAsync(
           `UPDATE items
-             SET name = ?, "set" = ?, cost_basis = ?, acquired_date = ?, source = ?, photo_uri = ?
+             SET name = ?, "set" = ?, cost_basis = ?, acquired_date = ?, source = ?,
+                 photo_uri = ?, current_price = ?, tcg_card_id = ?, tcg_set_id = ?,
+                 is_graded = ?, grading_company = ?, grade = ?
            WHERE id = ?`,
           [
             name.trim(),
             setName_.trim(),
-            parseFloat(costBasis),
+            cost,
             toIsoDate(acquiredDate),
             source,
             photoUri,
+            finalPrice,
+            tcgCardId,
+            tcgSetId,
+            isGraded ? 1 : 0,
+            finalGradingCompany,
+            finalGrade,
             editingId,
           ]
         );
@@ -153,17 +221,24 @@ export default function AddItemScreen() {
         router.back();
       } else {
         await db.runAsync(
-          `INSERT INTO items (name, "set", cost_basis, acquired_date, source, photo_uri, status, current_price)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO items
+             (name, "set", cost_basis, acquired_date, source, photo_uri, status,
+              current_price, tcg_card_id, tcg_set_id, is_graded, grading_company, grade)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             name.trim(),
             setName_.trim(),
-            parseFloat(costBasis),
+            cost,
             toIsoDate(acquiredDate),
             source,
             photoUri,
             'active',
-            null,
+            finalPrice,
+            tcgCardId,
+            tcgSetId,
+            isGraded ? 1 : 0,
+            finalGradingCompany,
+            finalGrade,
           ]
         );
         showToast('Item saved');
@@ -181,7 +256,15 @@ export default function AddItemScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       style={styles.flex}>
       <ThemedView style={styles.flex}>
-        <Stack.Screen options={{ title: isEdit ? 'Edit item' : 'Add item' }} />
+        <View style={styles.headerRow}>
+          <Pressable onPress={() => router.back()} style={styles.headerButton}>
+            <ThemedText style={styles.headerButtonText}>Back</ThemedText>
+          </Pressable>
+          <ThemedText type="defaultSemiBold">
+            {isEdit ? 'Edit item' : 'Confirm'}
+          </ThemedText>
+          <View style={styles.headerButton} />
+        </View>
         <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
           <ThemedText type="title">{isEdit ? 'Edit item' : 'Add item'}</ThemedText>
           {isEdit && !hydrated ? (
@@ -269,6 +352,55 @@ export default function AddItemScreen() {
             )}
           </Field>
 
+          <View style={styles.gradedToggleRow}>
+            <ThemedText type="defaultSemiBold">Is this card graded?</ThemedText>
+            <Switch value={isGraded} onValueChange={setIsGraded} />
+          </View>
+
+          {isGraded ? (
+            <>
+              <Field label="Grading company" required>
+                <Pressable
+                  onPress={() => setGradingModalOpen(true)}
+                  style={styles.input}>
+                  <ThemedText
+                    style={gradingCompany ? undefined : styles.placeholderText}>
+                    {gradingCompany ?? 'Select company'}
+                  </ThemedText>
+                </Pressable>
+              </Field>
+
+              <Field label="Grade (1–10, in 0.5 steps)" required>
+                <TextInput
+                  value={grade}
+                  onChangeText={(t) => setGrade(sanitizeMoneyInput(t))}
+                  placeholder="10"
+                  placeholderTextColor="#999"
+                  keyboardType="decimal-pad"
+                  style={styles.input}
+                />
+              </Field>
+
+              <Field label="Current market price" required>
+                <View style={styles.moneyRow}>
+                  <ThemedText style={styles.moneyPrefix}>$</ThemedText>
+                  <TextInput
+                    value={manualPrice}
+                    onChangeText={(t) => setManualPrice(sanitizeMoneyInput(t))}
+                    placeholder="0.00"
+                    placeholderTextColor="#999"
+                    keyboardType="decimal-pad"
+                    style={styles.moneyInput}
+                  />
+                </View>
+                <ThemedText style={styles.helperText}>
+                  pokemontcg.io only has raw prices — check PSA or CGC price guides
+                  for graded value.
+                </ThemedText>
+              </Field>
+            </>
+          ) : null}
+
           <Pressable
             disabled={!canSave || saving}
             onPress={onSave}
@@ -316,6 +448,36 @@ export default function AddItemScreen() {
             </Pressable>
           </Pressable>
         </Modal>
+
+        <Modal
+          visible={gradingModalOpen}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setGradingModalOpen(false)}>
+          <Pressable style={styles.backdrop} onPress={() => setGradingModalOpen(false)}>
+            <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+              <ThemedText type="defaultSemiBold" style={styles.sheetTitle}>
+                Grading company
+              </ThemedText>
+              {GRADING_COMPANIES.map((c) => {
+                const selected = c === gradingCompany;
+                return (
+                  <Pressable
+                    key={c}
+                    onPress={() => {
+                      setGradingCompany(c);
+                      setGradingModalOpen(false);
+                    }}
+                    style={[styles.sheetOption, selected && styles.sheetOptionSelected]}>
+                    <ThemedText style={selected ? styles.sheetOptionTextSelected : undefined}>
+                      {c}
+                    </ThemedText>
+                  </Pressable>
+                );
+              })}
+            </Pressable>
+          </Pressable>
+        </Modal>
       </ThemedView>
     </KeyboardAvoidingView>
   );
@@ -343,6 +505,16 @@ function Field({
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 8,
+  },
+  headerButton: { minWidth: 60, paddingVertical: 4 },
+  headerButtonText: { color: '#0a7ea4', fontSize: 16, fontWeight: '500' },
   container: { padding: 20, gap: 16, paddingBottom: 40 },
   field: { gap: 6 },
   required: { color: '#c0392b' },
@@ -383,6 +555,13 @@ const styles = StyleSheet.create({
   photoButton: { alignItems: 'center' },
   removePhoto: { alignItems: 'center', paddingVertical: 8 },
   removePhotoText: { color: '#c0392b' },
+  gradedToggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 4,
+  },
+  helperText: { fontSize: 13, color: '#555', marginTop: 4 },
   saveButton: {
     marginTop: 8,
     backgroundColor: '#0a7ea4',
