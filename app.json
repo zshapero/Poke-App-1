@@ -38,6 +38,14 @@
             "backgroundColor": "#000000"
           }
         }
+      ],
+      "@react-native-community/datetimepicker",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Poke-App to access your photos so you can attach an image to a card.",
+          "cameraPermission": "Allow Poke-App to use the camera so you can take a photo of a card."
+        }
       ]
     ],
     "experiments": {

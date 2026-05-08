@@ -2,7 +2,7 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 
 export const DATABASE_NAME = 'poke.db';
 
-export type ItemStatus = 'holding' | 'listed' | 'sold';
+export type ItemStatus = 'active' | 'listed' | 'sold';
 
 export type Item = {
   id: number;
