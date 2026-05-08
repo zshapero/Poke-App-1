@@ -372,7 +372,7 @@ function ItemRow({
               </View>
             ) : null}
           </View>
-          {item.set ? <ThemedText>{item.set}</ThemedText> : null}
+          {item.set ? <ThemedText style={styles.setText}>{item.set}</ThemedText> : null}
           <ThemedText style={styles.costBasisSmall}>
             Cost {formatMoney(item.cost_basis)}
           </ThemedText>
@@ -420,7 +420,7 @@ function ItemRow({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingTop: 60 },
+  container: { flex: 1, paddingTop: 60, backgroundColor: '#f9fafb' },
   header: { paddingHorizontal: 16, gap: 12 },
   titleRow: {
     flexDirection: 'row',
@@ -439,8 +439,14 @@ const styles = StyleSheet.create({
   refreshButtonDisabled: { opacity: 0.4 },
   statsRow: { flexDirection: 'row', gap: 24, marginTop: 4 },
   stat: { gap: 2 },
-  statLabel: { fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5 },
-  statValue: { fontSize: 20 },
+  statLabel: {
+    fontSize: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    color: '#4b5563',
+    fontWeight: '600',
+  },
+  statValue: { fontSize: 20, color: '#111827', fontWeight: '700' },
   search: {
     borderWidth: 1,
     borderColor: '#ccc',
@@ -467,23 +473,26 @@ const styles = StyleSheet.create({
   chipText: { color: '#111', fontSize: 13 },
   chipTextActive: { color: '#fff', fontSize: 13, fontWeight: '600' },
   listWrap: { flex: 1 },
-  list: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 160, gap: 8 },
+  list: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 160, gap: 12 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: 14,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#eee',
-    backgroundColor: '#fafafa',
-    gap: 12,
+    borderRadius: 14,
+    backgroundColor: '#ffffff',
+    gap: 14,
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
   },
-  rowPressed: { opacity: 0.7 },
+  rowPressed: { opacity: 0.85 },
   thumbnail: {
-    width: 50,
+    width: 64,
     aspectRatio: 5 / 7,
-    borderRadius: 6,
+    borderRadius: 8,
     backgroundColor: '#e5e7eb',
     overflow: 'hidden',
     alignItems: 'center',
@@ -491,7 +500,8 @@ const styles = StyleSheet.create({
   },
   rowLeft: { flex: 1, gap: 2 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
-  nameText: { flexShrink: 1 },
+  nameText: { flexShrink: 1, color: '#111827' },
+  setText: { color: '#4b5563' },
   gradeBadge: {
     paddingHorizontal: 8,
     paddingVertical: 2,
@@ -505,8 +515,8 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   pencilButtonPressed: { opacity: 0.5 },
-  costBasisSmall: { fontSize: 13, marginTop: 2 },
-  priceValue: { fontSize: 16 },
+  costBasisSmall: { fontSize: 13, marginTop: 2, color: '#4b5563' },
+  priceValue: { fontSize: 16, color: '#111827' },
   profit: { fontSize: 14, fontWeight: '600' },
   profitPositive: { color: '#16a34a' },
   profitNegative: { color: '#dc2626' },

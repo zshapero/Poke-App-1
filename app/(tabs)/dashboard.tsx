@@ -292,11 +292,14 @@ export default function DashboardScreen() {
                     ]}>
                     <ThemedText style={styles.topRank}>{idx + 1}</ThemedText>
                     <View style={styles.topName}>
-                      <ThemedText type="defaultSemiBold" numberOfLines={1}>
+                      <ThemedText
+                        type="defaultSemiBold"
+                        numberOfLines={1}
+                        style={styles.topNameText}>
                         {sale.item_name ?? `Item #${sale.item_id}`}
                       </ThemedText>
                       {sale.item_set ? (
-                        <ThemedText style={styles.muted} numberOfLines={1}>
+                        <ThemedText style={styles.topSetText} numberOfLines={1}>
                           {sale.item_set}
                         </ThemedText>
                       ) : null}
@@ -330,7 +333,9 @@ export default function DashboardScreen() {
             <IconSymbol name="square.and.arrow.up" size={22} color="#0a7ea4" />
           </View>
           <View style={styles.exportText}>
-            <ThemedText type="defaultSemiBold">Export for Taxes</ThemedText>
+            <ThemedText type="defaultSemiBold" style={styles.exportTitle}>
+              Export for Taxes
+            </ThemedText>
             <ThemedText style={styles.exportSubtext}>
               Save a CSV of every sale to email or send to your accountant.
             </ThemedText>
@@ -535,6 +540,8 @@ const styles = StyleSheet.create({
     color: '#4b5563',
   },
   topName: { flex: 1, gap: 2 },
+  topNameText: { color: '#111827' },
+  topSetText: { color: '#4b5563' },
   topProfit: { fontSize: 16, fontWeight: '600', color: '#111827' },
   muted: {},
   exportCard: {
@@ -558,5 +565,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   exportText: { flex: 1, gap: 2 },
-  exportSubtext: { fontSize: 13 },
+  exportTitle: { color: '#111827' },
+  exportSubtext: { fontSize: 13, color: '#4b5563' },
 });
