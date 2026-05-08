@@ -95,7 +95,7 @@ export default function ItemDetailScreen() {
         <View style={styles.buttons}>
           <Pressable
             onPress={() =>
-              router.push({ pathname: '/add', params: { id: String(item.id) } })
+              router.push({ pathname: '/add/form', params: { id: String(item.id) } })
             }
             style={({ pressed }) => [
               styles.button,

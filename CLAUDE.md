@@ -29,7 +29,13 @@ Every file under `app/` is a route. The file path *is* the URL.
 - `app/_layout.tsx` — the root layout. Wraps the entire app in two providers: `ThemeProvider` (light/dark) and `SQLiteProvider` (the database, see below). Declares a `Stack` with two children: the `(tabs)` group and the `add` modal screen. Also mounts `<ToastHost />` (see "Toasts" below) so it overlays the entire UI.
 - `app/(tabs)/_layout.tsx` — the tab bar. Parens around `(tabs)` mean "group, but don't add a URL segment." This file also renders the floating **+** button as a sibling of `<Tabs>` inside an absolute-positioned `<View>`, so the FAB sits *above* the tab bar without being part of it. The button calls `router.push('/add')`.
 - `app/(tabs)/index.tsx`, `sales.tsx`, `dashboard.tsx` — the three tab screens. **Portfolio is `index.tsx`** so it resolves the `/` route when the app cold-starts; without an `index.tsx` here, Expo Router shows "Unmatched Route" because nothing claims `/`. Its `<Tabs.Screen>` is registered with `name="index"` and `title: 'Portfolio'`. The order of `<Tabs.Screen>` declarations in `_layout.tsx` controls tab order; the first one is the default.
-- `app/add.tsx` — modal-presented form for inserting **or editing** an item. Registered with `presentation: 'modal'` in the root `Stack`. The same component handles both modes: if launched with an `id` search param (`router.push({ pathname: '/add', params: { id } })`), it pre-fills the form via a one-shot `SELECT` and runs `UPDATE` on save, then `router.back()` to return to the detail screen. With no `id` it runs `INSERT` and `router.dismissTo('/')` to land on Portfolio.
+- `app/add/` — modal-presented two-screen flow for adding/editing an item. The parent stack registers `add` (the directory) as a single modal route; `app/add/_layout.tsx` provides a nested `<Stack>` so the user can `back` between search and form *within* the modal.
+  - `app/add/index.tsx` — search-first entry. Debounces `searchCard(name)` (no setName — name-only across all sets) by 400ms, shows up to 10 results with thumbnails. Tapping a result calls `setPendingCard(...)` (see "Pending card handoff" below) and pushes `/add/form`. A small "Enter manually" link bypasses search and pushes `/add/form` with no prefill.
+  - `app/add/form.tsx` — the actual form. Three modes:
+    1. **Search confirm** — `consumePendingCard()` returns a prefill on mount; name/set/photo/tcg ids/auto price come from the picked card.
+    2. **Edit** — `?id=<id>` triggers a one-shot `SELECT` from the items table, including grading fields. Save runs `UPDATE`; navigation is `router.back()` so the user lands on the detail screen.
+    3. **Manual** — neither prefill nor id; blank form; save runs `INSERT` + `router.dismissTo('/')`.
+  - The form has a **graded** toggle. When on, it shows a grading-company dropdown (`PSA`/`CGC`/`BGS`/`SGC`/`ACE`/`Other`), a grade input (1–10 in 0.5 steps; validated by `Math.abs(value * 2 - Math.round(value * 2)) < 1e-9`), and a manual market-price override that takes precedence over the auto-populated TCGPlayer price. When off, the auto price is what gets stored.
 - `app/item/[id].tsx` — stack-pushed detail screen for a single item. The `[id]` segment is Expo Router's syntax for a dynamic route parameter, read with `useLocalSearchParams<{ id: string }>()`. Sets its own header title via `<Stack.Screen options={{ title: item.name }} />` from inside the component. Refreshes via `useFocusEffect`, so edits made through the modal show up when the user lands back here.
 - `app/sell/[id].tsx` — modal-presented form that records a sale and flips the item's status to `'sold'`. Wraps both writes (UPDATE items + INSERT sales) in `db.withTransactionAsync(...)` so they commit or roll back together — never leave the DB with a sold item missing its sale row, or vice-versa.
 - `app/sale/[id].tsx` — stack-pushed read-only detail screen for a single sale row (joined with its item). Receipt-style: sale price, cost basis, fees, shipping, divider, net profit (color-coded). **Note the singular noun `/sale` vs the verb `/sell`** — `sale/[id]` is "view this completed sale," `sell/[id]` is "the form you fill out to record a sale." Both routes coexist intentionally; don't merge or rename one to look like the other.
@@ -56,11 +62,18 @@ Typed routes are enabled (`experiments.typedRoutes` in `app.json`), so `router.p
 ### Tables
 
 ```
-items (id, name, set, cost_basis, acquired_date, source, photo_uri, status, current_price)
+items (id, name, set, cost_basis, acquired_date, source, photo_uri, status, current_price,
+       tcg_card_id, tcg_set_id, is_graded, grading_company, grade)
 sales (id, item_id, sale_price, platform, fees, shipping, sold_date, net_profit, days_held)
 ```
 
 `days_held` is captured at sale time (sold_date − acquired_date in whole days) so the sales row freezes that snapshot — useful for historical reporting that shouldn't recompute against the (potentially edited) acquired_date later.
+
+**Grading columns** were added in v3:
+
+- `tcg_card_id` / `tcg_set_id` — Pokemon TCG API identifiers, populated when the user picks a card from the search-first Add flow. The Refresh Prices logic prefers `getCardById(tcg_card_id)` over name+set search when this is set.
+- `is_graded` — `INTEGER NOT NULL DEFAULT 0`. SQLite returns it as a number; treat `=== 1` as true. The default 0 is what populated existing rows during the v3 ALTER.
+- `grading_company` (`'PSA' | 'CGC' | 'BGS' | 'SGC' | 'ACE' | 'Other'` or null) and `grade` (REAL, 1–10 in 0.5 steps) are only meaningful when `is_graded === 1`. Validation lives in `app/add/form.tsx`.
 
 `status` is the union `'active' | 'listed' | 'sold'`. New items inserted from the Add screen default to `'active'`, and the Portfolio tab filters on `status = 'active'` — if you add a new status value, update both the type in `db/schema.ts` and the WHERE clause in `app/(tabs)/index.tsx`. `sales.item_id` is a foreign key to `items.id` with `ON DELETE CASCADE` — deleting an item removes its sales too. Foreign keys are enabled in `migrate` via `PRAGMA foreign_keys = ON`.
 
@@ -76,15 +89,23 @@ There is no toast library — instead, a tiny in-house pattern:
 - `components/toast.tsx` exports `<ToastHost />`, which subscribes via `setToastListener`, animates in/out with `Animated`, and renders absolute-positioned text near the top safe-area inset. It's mounted once in `app/_layout.tsx` outside the `Stack` so it overlays modals and tabs alike.
 - To show a toast from anywhere: `import { showToast } from '@/lib/toast'; showToast('Item saved');`. Don't try to render `<Toast>` in screens directly.
 
+### Pending card handoff (`lib/pendingCard.ts`)
+
+Search → Form passes the picked card via a tiny module-level singleton instead of query params or a re-fetch. `setPendingCard(prefill)` stashes it; `consumePendingCard()` returns it once and clears the slot. Use `useMemo` (not `useState`) on the consume call so it runs exactly once on mount and won't re-trigger on rerender. If you ever add multi-step "wizard" flows that need to share state between screens, use this same pattern — don't introduce a state library for a one-shot handoff.
+
 ### External APIs (`lib/api/`)
 
 Network code lives under `lib/api/`. Keep it pure: a function that takes inputs and returns data (or throws on failure). No React, no state, no side effects beyond `fetch`. Screens own the loading/toasting/state-update part.
 
 - `lib/api/pokemontcg.ts` — wraps the public `https://api.pokemontcg.io/v2` endpoint (no auth required for low-volume use).
-  - `searchCard(name, setName)` builds a Lucene-style query `name:"X" set.name:"Y"`, URL-encodes it, and returns the matching cards (or throws on non-2xx / network failure). The escape helper backslash-escapes embedded quotes in the inputs.
+  - `searchCard(name, setName?)` builds a Lucene-style query `name:"X"` plus an optional `set.name:"Y"`, URL-encodes it, returns up to 10 matching cards (or throws on non-2xx / network failure). The escape helper backslash-escapes embedded quotes in the inputs. `setName` is optional so the search screen can do a name-only lookup across all sets; the refresh-prices logic still passes it for accuracy.
+  - `getCardById(id)` hits `/cards/{id}` directly. **Always prefer this** over `searchCard` when you already have the canonical `tcg_card_id` — name+set search can return ambiguous matches if the same card name appears across multiple sets.
   - `getMarketPrice(card)` reads `card.tcgplayer.prices.{normal, holofoil, reverseHolofoil}.market` and returns the highest non-null number, or `null` if none. Pure function — never throws, never fetches.
 
-The Portfolio tab's "Refresh Prices" button is the consumer pattern: per-item `try/catch`, sequential loop (one fetch at a time so we don't burst-rate-limit the public API), per-item UPDATE only when a real price comes back, single summary toast at the end. **Do not** add a second toast per failed item — the toast would queue up and overwhelm the user.
+The Portfolio tab's "Refresh Prices" button is the consumer pattern: per-item `try/catch`, sequential loop (one fetch at a time so we don't burst-rate-limit the public API), per-item UPDATE only when a real price comes back, single summary toast at the end. **Do not** add a second toast per failed item — the toast would queue up and overwhelm the user. Two important behaviors:
+
+- **Graded items skip the API entirely** — `pokemontcg.io` only has raw prices. The user updates graded prices manually via the pencil icon next to the price on graded rows.
+- **Raw items prefer `getCardById(tcg_card_id)`** when the id is set; fall back to `searchCard(name, set)` only when there's no id (older rows added before the search-first flow). Refresh's `X of Y` denominator counts only the raw items the loop attempted, so graded skips don't make the toast misleading.
 
 ### CSV export (`lib/csv.ts`)
 

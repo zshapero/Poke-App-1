@@ -23,6 +23,7 @@ const MAPPING = {
   'chart.bar.fill': 'bar-chart',
   'arrow.clockwise': 'refresh',
   'square.and.arrow.up': 'share',
+  pencil: 'edit',
 } as IconMapping;
 
 /**

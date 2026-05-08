@@ -4,6 +4,8 @@ export const DATABASE_NAME = 'poke.db';
 
 export type ItemStatus = 'active' | 'listed' | 'sold';
 
+export type GradingCompany = 'PSA' | 'CGC' | 'BGS' | 'SGC' | 'ACE' | 'Other';
+
 export type Item = {
   id: number;
   name: string;
@@ -14,6 +16,11 @@ export type Item = {
   photo_uri: string | null;
   status: ItemStatus | null;
   current_price: number | null;
+  tcg_card_id: string | null;
+  tcg_set_id: string | null;
+  is_graded: number;
+  grading_company: string | null;
+  grade: number | null;
 };
 
 export type Sale = {
@@ -32,9 +39,10 @@ export type SaleWithItem = Sale & {
   item_name: string | null;
   item_set: string | null;
   item_cost_basis: number | null;
+  item_is_graded: number | null;
 };
 
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 export async function migrate(db: SQLiteDatabase): Promise<void> {
   // Pragmas are session-scoped, so set every time the DB is opened.
@@ -81,6 +89,19 @@ export async function migrate(db: SQLiteDatabase): Promise<void> {
     // v2: capture how long an item was held when a sale is recorded.
     await db.execAsync(`ALTER TABLE sales ADD COLUMN days_held INTEGER`);
     version = 2;
+  }
+
+  if (version < 3) {
+    // v3: link items back to the Pokemon TCG API and capture grading info.
+    // ALTER TABLE ... DEFAULT 0 fills existing rows with 0; the rest stay NULL.
+    await db.execAsync(`
+      ALTER TABLE items ADD COLUMN tcg_card_id TEXT;
+      ALTER TABLE items ADD COLUMN tcg_set_id TEXT;
+      ALTER TABLE items ADD COLUMN is_graded INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE items ADD COLUMN grading_company TEXT;
+      ALTER TABLE items ADD COLUMN grade REAL;
+    `);
+    version = 3;
   }
 
   if (version !== SCHEMA_VERSION) {
