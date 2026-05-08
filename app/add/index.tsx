@@ -150,15 +150,16 @@ function ResultRow({ card, onPress }: { card: TcgCard; onPress: () => void }) {
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [styles.resultRow, pressed && styles.resultRowPressed]}>
-      {card.images?.small ? (
-        <Image
-          source={{ uri: card.images.small }}
-          style={styles.thumbnail}
-          contentFit="contain"
-        />
-      ) : (
-        <View style={[styles.thumbnail, styles.thumbnailPlaceholder]} />
-      )}
+      <View style={styles.thumbnail}>
+        {card.images?.small ? (
+          <Image
+            source={{ uri: card.images.small }}
+            style={StyleSheet.absoluteFill}
+            contentFit="cover"
+            transition={150}
+          />
+        ) : null}
+      </View>
       <View style={styles.resultMeta}>
         <ThemedText type="defaultSemiBold" numberOfLines={1}>
           {card.name}
@@ -218,10 +219,10 @@ const styles = StyleSheet.create({
   resultRowPressed: { opacity: 0.7 },
   thumbnail: {
     width: 48,
-    height: 67,
+    aspectRatio: 5 / 7,
     borderRadius: 4,
-    backgroundColor: '#eee',
+    backgroundColor: '#e5e7eb',
+    overflow: 'hidden',
   },
-  thumbnailPlaceholder: { backgroundColor: '#eee' },
   resultMeta: { flex: 1, gap: 2 },
 });

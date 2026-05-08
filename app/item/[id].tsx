@@ -137,7 +137,13 @@ function FieldRow({ label, value }: { label: string; value: string }) {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   scroll: { padding: 20, gap: 12, paddingBottom: 40 },
-  photo: { width: '100%', height: 260, borderRadius: 12, backgroundColor: '#eee' },
+  photo: {
+    width: 220,
+    aspectRatio: 5 / 7,
+    borderRadius: 12,
+    backgroundColor: '#e5e7eb',
+    alignSelf: 'center',
+  },
   headerBlock: {
     flexDirection: 'row',
     alignItems: 'center',
