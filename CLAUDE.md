@@ -28,7 +28,7 @@ Every file under `app/` is a route. The file path *is* the URL.
 
 - `app/_layout.tsx` — the root layout. Wraps the entire app in two providers: `ThemeProvider` (light/dark) and `SQLiteProvider` (the database, see below). Declares a `Stack` with two children: the `(tabs)` group and the `add-item` modal screen.
 - `app/(tabs)/_layout.tsx` — the tab bar. Parens around `(tabs)` mean "group, but don't add a URL segment." This file also renders the floating **+** button as a sibling of `<Tabs>` inside an absolute-positioned `<View>`, so the FAB sits *above* the tab bar without being part of it. The button calls `router.push('/add-item')`.
-- `app/(tabs)/portfolio.tsx`, `sales.tsx`, `dashboard.tsx` — the three tab screens. The order of `<Tabs.Screen>` declarations in `_layout.tsx` controls tab order; the first one is the default.
+- `app/(tabs)/index.tsx`, `sales.tsx`, `dashboard.tsx` — the three tab screens. **Portfolio is `index.tsx`** so it resolves the `/` route when the app cold-starts; without an `index.tsx` here, Expo Router shows "Unmatched Route" because nothing claims `/`. Its `<Tabs.Screen>` is registered with `name="index"` and `title: 'Portfolio'`. The order of `<Tabs.Screen>` declarations in `_layout.tsx` controls tab order; the first one is the default.
 - `app/add-item.tsx` — modal-presented form for inserting a new item. Registered with `presentation: 'modal'` in the root `Stack`.
 
 Typed routes are enabled (`experiments.typedRoutes` in `app.json`), so `router.push('/some-route')` is type-checked against the actual files in `app/`. If you add a screen, the type for that path appears automatically.
