@@ -4,6 +4,20 @@ export function formatMoney(value: number | null | undefined): string {
   return `${sign}$${Math.abs(n).toFixed(2)}`;
 }
 
+export function formatSignedMoney(value: number | null | undefined): string {
+  const n = value ?? 0;
+  if (n > 0) return `+$${n.toFixed(2)}`;
+  if (n < 0) return `-$${Math.abs(n).toFixed(2)}`;
+  return '$0.00';
+}
+
+export function formatIsoForDisplay(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const d = new Date(`${iso}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return iso;
+  return formatDateForDisplay(d);
+}
+
 export function daysHeld(acquiredDate: string | null | undefined): number | null {
   if (!acquiredDate) return null;
   const parsed = new Date(`${acquiredDate}T00:00:00`);

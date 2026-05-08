@@ -32,6 +32,7 @@ export default function RootLayout() {
               name="sell/[id]"
               options={{ presentation: 'modal', title: 'Mark as Sold' }}
             />
+            <Stack.Screen name="sale/[id]" options={{ headerBackTitle: 'Back' }} />
           </Stack>
           <ToastHost />
           <StatusBar style="auto" />
