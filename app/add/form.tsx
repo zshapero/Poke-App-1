@@ -394,8 +394,7 @@ export default function AddItemFormScreen() {
                   />
                 </View>
                 <ThemedText style={styles.helperText}>
-                  pokemontcg.io only has raw prices — check PSA or CGC price guides
-                  for graded value.
+                  Check PriceCharting for current value. Graded card auto-pricing coming soon.
                 </ThemedText>
               </Field>
             </>
@@ -550,8 +549,13 @@ const styles = StyleSheet.create({
   placeholderText: { color: '#999' },
   doneRow: { alignItems: 'flex-end', paddingTop: 4 },
   doneText: { color: '#0a7ea4', fontWeight: '600' },
-  photoBlock: { gap: 8 },
-  photo: { width: '100%', height: 220, borderRadius: 8, backgroundColor: '#eee' },
+  photoBlock: { gap: 8, alignItems: 'center' },
+  photo: {
+    width: 200,
+    aspectRatio: 5 / 7,
+    borderRadius: 8,
+    backgroundColor: '#e5e7eb',
+  },
   photoButton: { alignItems: 'center' },
   removePhoto: { alignItems: 'center', paddingVertical: 8 },
   removePhotoText: { color: '#c0392b' },

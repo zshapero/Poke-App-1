@@ -24,6 +24,7 @@ const MAPPING = {
   'arrow.clockwise': 'refresh',
   'square.and.arrow.up': 'share',
   pencil: 'edit',
+  photo: 'image',
 } as IconMapping;
 
 /**

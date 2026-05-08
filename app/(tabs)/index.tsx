@@ -1,3 +1,4 @@
+import { Image } from 'expo-image';
 import { Link, useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useCallback, useMemo, useState } from 'react';
@@ -346,6 +347,18 @@ function ItemRow({
     <Link href={{ pathname: '/item/[id]', params: { id: String(item.id) } }} asChild>
       <Pressable
         style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}>
+        <View style={styles.thumbnail}>
+          {item.photo_uri ? (
+            <Image
+              source={{ uri: item.photo_uri }}
+              style={StyleSheet.absoluteFill}
+              contentFit="cover"
+              transition={150}
+            />
+          ) : (
+            <IconSymbol name="photo" size={20} color="#9ca3af" />
+          )}
+        </View>
         <View style={styles.rowLeft}>
           <View style={styles.nameRow}>
             <ThemedText type="defaultSemiBold" style={styles.nameText} numberOfLines={1}>
@@ -467,6 +480,15 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   rowPressed: { opacity: 0.7 },
+  thumbnail: {
+    width: 50,
+    aspectRatio: 5 / 7,
+    borderRadius: 6,
+    backgroundColor: '#e5e7eb',
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   rowLeft: { flex: 1, gap: 2 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   nameText: { flexShrink: 1 },
