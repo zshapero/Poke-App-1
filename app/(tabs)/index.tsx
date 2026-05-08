@@ -420,7 +420,7 @@ function ItemRow({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingTop: 60, backgroundColor: '#f9fafb' },
+  container: { flex: 1, paddingTop: 60 },
   header: { paddingHorizontal: 16, gap: 12 },
   titleRow: {
     flexDirection: 'row',
@@ -473,27 +473,24 @@ const styles = StyleSheet.create({
   chipText: { color: '#111', fontSize: 13 },
   chipTextActive: { color: '#fff', fontSize: 13, fontWeight: '600' },
   listWrap: { flex: 1 },
-  list: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 160, gap: 12 },
+  list: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 160, gap: 10 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: 14,
-    borderRadius: 14,
-    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    backgroundColor: '#f9fafb',
     gap: 14,
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
   },
-  rowPressed: { opacity: 0.85 },
+  rowPressed: { opacity: 0.7 },
   thumbnail: {
     width: 64,
     aspectRatio: 5 / 7,
     borderRadius: 8,
-    backgroundColor: '#e5e7eb',
+    backgroundColor: '#d1d5db',
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
