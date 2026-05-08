@@ -1,3 +1,4 @@
+import { Image } from 'expo-image';
 import { Link, useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useCallback, useMemo, useState } from 'react';
@@ -6,18 +7,32 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Text,
   TextInput,
   View,
 } from 'react-native';
 
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
+import { IconSymbol } from '@/components/ui/icon-symbol';
 import type { SaleWithItem } from '@/db/schema';
 import {
   formatIsoForDisplay,
   formatMoney,
   formatSignedMoney,
 } from '@/lib/format';
+
+const C = {
+  scaffold: '#000000',
+  surface: '#1f2937',
+  surfaceBorder: 'rgba(255,255,255,0.06)',
+  primary: '#f9fafb',
+  secondary: '#9ca3af',
+  muted: '#6b7280',
+  accent: '#3b82f6',
+  positive: '#22c55e',
+  positiveBg: 'rgba(34,197,94,0.15)',
+  negative: '#ef4444',
+  negativeBg: 'rgba(239,68,68,0.15)',
+};
 
 const PLATFORM_FILTERS = [
   'All',
@@ -48,7 +63,8 @@ export default function SalesScreen() {
                   items.name AS item_name,
                   items."set" AS item_set,
                   items.cost_basis AS item_cost_basis,
-                  items.is_graded AS item_is_graded
+                  items.is_graded AS item_is_graded,
+                  items.photo_uri AS item_photo_uri
            FROM sales
            LEFT JOIN items ON items.id = sales.item_id
            ORDER BY sold_date DESC, sales.id DESC`
@@ -85,34 +101,35 @@ export default function SalesScreen() {
     return { totalProfit, count, avgDays };
   }, [sales]);
 
+  const filtersActive =
+    platformFilter !== 'All' || typeFilter !== 'All' || search.trim().length > 0;
+
   return (
-    <ThemedView style={styles.container}>
+    <View style={styles.container}>
       <View style={styles.header}>
-        <ThemedText type="title">Sales</ThemedText>
+        <Text style={styles.title}>Sales</Text>
+
         <View style={styles.statsRow}>
-          <View style={styles.stat}>
-            <ThemedText style={styles.statLabel}>Lifetime profit</ThemedText>
-            <ThemedText
-              type="defaultSemiBold"
+          <View style={styles.statCard}>
+            <Text style={styles.statLabel}>Lifetime profit</Text>
+            <Text
               style={[
                 styles.statValue,
-                stats.totalProfit > 0 && styles.profitPositive,
-                stats.totalProfit < 0 && styles.profitNegative,
+                stats.totalProfit > 0 && styles.statValuePositive,
+                stats.totalProfit < 0 && styles.statValueNegative,
               ]}>
               {formatSignedMoney(stats.totalProfit)}
-            </ThemedText>
+            </Text>
           </View>
-          <View style={styles.stat}>
-            <ThemedText style={styles.statLabel}>Sales</ThemedText>
-            <ThemedText type="defaultSemiBold" style={styles.statValue}>
-              {stats.count}
-            </ThemedText>
+          <View style={styles.statCard}>
+            <Text style={styles.statLabel}>Sales</Text>
+            <Text style={styles.statValue}>{stats.count}</Text>
           </View>
-          <View style={styles.stat}>
-            <ThemedText style={styles.statLabel}>Avg days to sell</ThemedText>
-            <ThemedText type="defaultSemiBold" style={styles.statValue}>
+          <View style={styles.statCard}>
+            <Text style={styles.statLabel}>Avg days</Text>
+            <Text style={styles.statValue}>
               {stats.avgDays === null ? '—' : `${stats.avgDays}`}
-            </ThemedText>
+            </Text>
           </View>
         </View>
 
@@ -120,53 +137,54 @@ export default function SalesScreen() {
           value={search}
           onChangeText={setSearch}
           placeholder="Search by item name…"
-          placeholderTextColor="#999"
+          placeholderTextColor={C.muted}
           style={styles.search}
           autoCapitalize="none"
           autoCorrect={false}
           clearButtonMode="while-editing"
           returnKeyType="search"
         />
-
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.chipsRow}>
-          {PLATFORM_FILTERS.map((p) => {
-            const active = p === platformFilter;
-            return (
-              <Pressable
-                key={p}
-                onPress={() => setPlatformFilter(p)}
-                style={[styles.chip, active && styles.chipActive]}>
-                <ThemedText
-                  style={active ? styles.chipTextActive : styles.chipText}>
-                  {p}
-                </ThemedText>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.chipsRow}>
-          {TYPE_FILTERS.map((t) => {
-            const active = t === typeFilter;
-            return (
-              <Pressable
-                key={t}
-                onPress={() => setTypeFilter(t)}
-                style={[styles.chip, active && styles.chipActive]}>
-                <ThemedText style={active ? styles.chipTextActive : styles.chipText}>
-                  {t}
-                </ThemedText>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
       </View>
+
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.chipsRow}
+        style={styles.chipsScroll}>
+        {PLATFORM_FILTERS.map((p) => {
+          const active = p === platformFilter;
+          return (
+            <Pressable
+              key={p}
+              onPress={() => setPlatformFilter(p)}
+              style={[styles.chip, active && styles.chipActive]}>
+              <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                {p}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.chipsRow}
+        style={styles.chipsScroll}>
+        {TYPE_FILTERS.map((t) => {
+          const active = t === typeFilter;
+          return (
+            <Pressable
+              key={t}
+              onPress={() => setTypeFilter(t)}
+              style={[styles.chip, active && styles.chipActive]}>
+              <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                {t}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
 
       <FlatList
         data={filtered}
@@ -174,63 +192,102 @@ export default function SalesScreen() {
         contentContainerStyle={styles.list}
         keyboardShouldPersistTaps="handled"
         ListEmptyComponent={
-          <ThemedText style={styles.empty}>
-            {sales.length === 0
-              ? 'No sales recorded yet. Mark an item as sold to log one here.'
-              : 'No sales match your search or filter.'}
-          </ThemedText>
+          <View style={styles.empty}>
+            <View style={styles.emptyIcon}>
+              <IconSymbol name="dollarsign.circle.fill" size={36} color={C.muted} />
+            </View>
+            <Text style={styles.emptyText}>
+              {sales.length === 0
+                ? 'No sales yet — mark an item sold to log one'
+                : filtersActive
+                  ? 'No sales match your filters'
+                  : 'No sales recorded yet'}
+            </Text>
+          </View>
         }
-        renderItem={({ item }) => <SaleRow sale={item} />}
+        renderItem={({ item }) => <SaleCard sale={item} />}
       />
-    </ThemedView>
+    </View>
   );
 }
 
-function SaleRow({ sale }: { sale: SaleWithItem }) {
-  const profitPositive = (sale.net_profit ?? 0) > 0;
-  const profitNegative = (sale.net_profit ?? 0) < 0;
+function SaleCard({ sale }: { sale: SaleWithItem }) {
+  const profit = sale.net_profit ?? 0;
+  const profitPositive = profit > 0;
+  const profitNegative = profit < 0;
+  const isGraded = sale.item_is_graded === 1;
+  const setLine = sale.item_set;
+
   return (
     <Link
       href={{ pathname: '/sale/[id]', params: { id: String(sale.id) } }}
       asChild>
       <Pressable
-        style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}>
-        <View style={styles.rowMain}>
-          <View style={styles.rowTop}>
-            <View style={styles.rowTopLeft}>
-              <ThemedText type="defaultSemiBold">
-                {sale.item_name ?? `Item #${sale.item_id}`}
-              </ThemedText>
-              {sale.item_set ? (
-                <ThemedText style={styles.muted}>{sale.item_set}</ThemedText>
-              ) : null}
-            </View>
-            <View style={styles.rowTopRight}>
-              <ThemedText type="defaultSemiBold">
-                {formatMoney(sale.sale_price)}
-              </ThemedText>
-              <ThemedText
-                style={[
-                  styles.profit,
-                  profitPositive && styles.profitPositive,
-                  profitNegative && styles.profitNegative,
-                ]}>
-                {formatSignedMoney(sale.net_profit)}
-              </ThemedText>
-            </View>
-          </View>
-          <View style={styles.rowBottom}>
-            <ThemedText style={styles.muted}>
-              {sale.days_held !== null
-                ? `${sale.days_held === 1 ? '1 day' : `${sale.days_held} days`} held · `
-                : ''}
-              {formatIsoForDisplay(sale.sold_date)}
-            </ThemedText>
-            {sale.platform ? (
-              <View style={styles.badge}>
-                <ThemedText style={styles.badgeText}>{sale.platform}</ThemedText>
+        style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}>
+        <View style={styles.thumb}>
+          {sale.item_photo_uri ? (
+            <Image
+              source={{ uri: sale.item_photo_uri }}
+              style={StyleSheet.absoluteFill}
+              contentFit="cover"
+              transition={150}
+            />
+          ) : (
+            <IconSymbol name="photo" size={20} color={C.muted} />
+          )}
+        </View>
+
+        <View style={styles.center}>
+          <View style={styles.nameRow}>
+            <Text style={styles.name} numberOfLines={1}>
+              {sale.item_name ?? `Item #${sale.item_id}`}
+            </Text>
+            {isGraded ? (
+              <View style={styles.gradeChip}>
+                <Text style={styles.gradeChipText}>Graded</Text>
               </View>
             ) : null}
+          </View>
+          {setLine ? (
+            <Text style={styles.setText} numberOfLines={1}>
+              {setLine}
+            </Text>
+          ) : null}
+          <View style={styles.metaRow}>
+            {sale.platform ? (
+              <View style={styles.sourceChip}>
+                <Text style={styles.sourceChipText}>{sale.platform}</Text>
+              </View>
+            ) : null}
+            <Text style={styles.metaText}>
+              {sale.platform ? '· ' : ''}
+              {sale.days_held != null
+                ? `${sale.days_held === 1 ? '1 day' : `${sale.days_held} days`} · `
+                : ''}
+              {formatIsoForDisplay(sale.sold_date)}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.right}>
+          <Text style={styles.costLabel}>
+            Cost {formatMoney(sale.item_cost_basis)}
+          </Text>
+          <Text style={styles.priceText}>Sale {formatMoney(sale.sale_price)}</Text>
+          <View
+            style={[
+              styles.profitPill,
+              profitPositive && styles.profitPillPositive,
+              profitNegative && styles.profitPillNegative,
+            ]}>
+            <Text
+              style={[
+                styles.profitPillText,
+                profitPositive && styles.profitPillTextPositive,
+                profitNegative && styles.profitPillTextNegative,
+              ]}>
+              {formatSignedMoney(profit)}
+            </Text>
           </View>
         </View>
       </Pressable>
@@ -239,70 +296,133 @@ function SaleRow({ sale }: { sale: SaleWithItem }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingTop: 60 },
+  container: { flex: 1, paddingTop: 60, backgroundColor: C.scaffold },
+
   header: { paddingHorizontal: 16, gap: 12 },
-  statsRow: { flexDirection: 'row', gap: 16, marginTop: 4, flexWrap: 'wrap' },
-  stat: { gap: 2, minWidth: 100 },
-  statLabel: { fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5 },
-  statValue: { fontSize: 20 },
-  profitPositive: { color: '#16a34a' },
-  profitNegative: { color: '#dc2626' },
+  title: { fontSize: 32, fontWeight: '700', color: C.primary },
+
+  statsRow: { flexDirection: 'row', gap: 12 },
+  statCard: {
+    flex: 1,
+    backgroundColor: C.surface,
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: C.surfaceBorder,
+    gap: 4,
+  },
+  statLabel: {
+    fontSize: 11,
+    color: C.secondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    fontWeight: '600',
+  },
+  statValue: { fontSize: 22, fontWeight: '700', color: C.primary },
+  statValuePositive: { color: C.positive },
+  statValueNegative: { color: C.negative },
+
   search: {
     borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
+    borderColor: C.surfaceBorder,
+    borderRadius: 12,
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 12,
     fontSize: 16,
-    color: '#111',
-    backgroundColor: '#fff',
+    color: C.primary,
+    backgroundColor: C.surface,
   },
-  chipsRow: { gap: 8, paddingVertical: 4, paddingRight: 16 },
+
+  chipsScroll: { flexGrow: 0 },
+  chipsRow: { gap: 8, paddingHorizontal: 16, paddingVertical: 8 },
   chip: {
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#ccc',
-    backgroundColor: '#fff',
+    borderColor: C.surfaceBorder,
+    backgroundColor: C.surface,
   },
-  chipActive: {
-    borderColor: '#0a7ea4',
-    backgroundColor: '#0a7ea4',
-  },
-  chipText: { color: '#111', fontSize: 13 },
-  chipTextActive: { color: '#fff', fontSize: 13, fontWeight: '600' },
-  list: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 160, gap: 8 },
-  row: {
-    padding: 14,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#eee',
-    backgroundColor: '#fafafa',
-  },
-  rowPressed: { opacity: 0.7 },
-  rowMain: { gap: 8 },
-  rowTop: {
+  chipActive: { backgroundColor: C.accent, borderColor: C.accent },
+  chipText: { color: C.primary, fontSize: 13, fontWeight: '500' },
+  chipTextActive: { color: '#ffffff', fontSize: 13, fontWeight: '600' },
+
+  list: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 160, gap: 12 },
+  card: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: 12,
-  },
-  rowTopLeft: { flex: 1, gap: 2 },
-  rowTopRight: { alignItems: 'flex-end', gap: 2 },
-  profit: { fontSize: 14, fontWeight: '600' },
-  rowBottom: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    padding: 14,
+    borderRadius: 16,
+    backgroundColor: C.surface,
+    borderWidth: 1,
+    borderColor: C.surfaceBorder,
   },
-  muted: {},
-  badge: {
-    backgroundColor: '#e6f4fb',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+  cardPressed: { opacity: 0.85 },
+
+  thumb: {
+    width: 56,
+    aspectRatio: 5 / 7,
+    borderRadius: 8,
+    backgroundColor: '#374151',
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+
+  center: { flex: 1, gap: 4 },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  name: { flexShrink: 1, fontSize: 16, fontWeight: '600', color: C.primary },
+  setText: { fontSize: 13, color: C.secondary },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2, flexWrap: 'wrap' },
+  sourceChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
     borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.06)',
   },
-  badgeText: { color: '#0a7ea4', fontSize: 12, fontWeight: '600' },
-  empty: { textAlign: 'center', marginTop: 48 },
+  sourceChipText: { fontSize: 11, color: C.secondary, fontWeight: '500' },
+  metaText: { fontSize: 12, color: C.muted },
+  gradeChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 999,
+    backgroundColor: 'rgba(148,163,184,0.18)',
+  },
+  gradeChipText: { fontSize: 11, color: '#cbd5e1', fontWeight: '700' },
+
+  right: { alignItems: 'flex-end', gap: 4, marginLeft: 12 },
+  costLabel: { fontSize: 13, color: C.secondary },
+  priceText: { fontSize: 15, fontWeight: '600', color: C.primary },
+
+  profitPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    marginTop: 2,
+  },
+  profitPillPositive: { backgroundColor: C.positiveBg },
+  profitPillNegative: { backgroundColor: C.negativeBg },
+  profitPillText: { fontSize: 12, fontWeight: '700', color: C.muted },
+  profitPillTextPositive: { color: C.positive },
+  profitPillTextNegative: { color: C.negative },
+
+  empty: { alignItems: 'center', paddingTop: 80, gap: 16 },
+  emptyIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: C.surface,
+    borderWidth: 1,
+    borderColor: C.surfaceBorder,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyText: { color: C.secondary, textAlign: 'center', fontSize: 15 },
 });

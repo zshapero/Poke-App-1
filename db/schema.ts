@@ -40,6 +40,7 @@ export type SaleWithItem = Sale & {
   item_set: string | null;
   item_cost_basis: number | null;
   item_is_graded: number | null;
+  item_photo_uri: string | null;
 };
 
 const SCHEMA_VERSION = 3;
