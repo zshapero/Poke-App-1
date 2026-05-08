@@ -76,6 +76,16 @@ There is no toast library — instead, a tiny in-house pattern:
 - `components/toast.tsx` exports `<ToastHost />`, which subscribes via `setToastListener`, animates in/out with `Animated`, and renders absolute-positioned text near the top safe-area inset. It's mounted once in `app/_layout.tsx` outside the `Stack` so it overlays modals and tabs alike.
 - To show a toast from anywhere: `import { showToast } from '@/lib/toast'; showToast('Item saved');`. Don't try to render `<Toast>` in screens directly.
 
+### External APIs (`lib/api/`)
+
+Network code lives under `lib/api/`. Keep it pure: a function that takes inputs and returns data (or throws on failure). No React, no state, no side effects beyond `fetch`. Screens own the loading/toasting/state-update part.
+
+- `lib/api/pokemontcg.ts` — wraps the public `https://api.pokemontcg.io/v2` endpoint (no auth required for low-volume use).
+  - `searchCard(name, setName)` builds a Lucene-style query `name:"X" set.name:"Y"`, URL-encodes it, and returns the matching cards (or throws on non-2xx / network failure). The escape helper backslash-escapes embedded quotes in the inputs.
+  - `getMarketPrice(card)` reads `card.tcgplayer.prices.{normal, holofoil, reverseHolofoil}.market` and returns the highest non-null number, or `null` if none. Pure function — never throws, never fetches.
+
+The Portfolio tab's "Refresh Prices" button is the consumer pattern: per-item `try/catch`, sequential loop (one fetch at a time so we don't burst-rate-limit the public API), per-item UPDATE only when a real price comes back, single summary toast at the end. **Do not** add a second toast per failed item — the toast would queue up and overwhelm the user.
+
 ### Format helpers
 
 `lib/format.ts` holds small, pure formatters and input sanitizers. Use these instead of inlining `toFixed(2)` or `Date` math in screens — Portfolio, the item detail screen, the Add form, and the Mark-as-Sold form all read from them, and they're trivially unit-testable later.

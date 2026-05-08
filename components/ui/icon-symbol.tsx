@@ -21,6 +21,7 @@ const MAPPING = {
   'briefcase.fill': 'work',
   'dollarsign.circle.fill': 'attach-money',
   'chart.bar.fill': 'bar-chart',
+  'arrow.clockwise': 'refresh',
 } as IconMapping;
 
 /**
