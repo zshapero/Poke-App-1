@@ -29,7 +29,8 @@ Every file under `app/` is a route. The file path *is* the URL.
 - `app/_layout.tsx` — the root layout. Wraps the entire app in two providers: `ThemeProvider` (light/dark) and `SQLiteProvider` (the database, see below). Declares a `Stack` with two children: the `(tabs)` group and the `add` modal screen. Also mounts `<ToastHost />` (see "Toasts" below) so it overlays the entire UI.
 - `app/(tabs)/_layout.tsx` — the tab bar. Parens around `(tabs)` mean "group, but don't add a URL segment." This file also renders the floating **+** button as a sibling of `<Tabs>` inside an absolute-positioned `<View>`, so the FAB sits *above* the tab bar without being part of it. The button calls `router.push('/add')`.
 - `app/(tabs)/index.tsx`, `sales.tsx`, `dashboard.tsx` — the three tab screens. **Portfolio is `index.tsx`** so it resolves the `/` route when the app cold-starts; without an `index.tsx` here, Expo Router shows "Unmatched Route" because nothing claims `/`. Its `<Tabs.Screen>` is registered with `name="index"` and `title: 'Portfolio'`. The order of `<Tabs.Screen>` declarations in `_layout.tsx` controls tab order; the first one is the default.
-- `app/add.tsx` — modal-presented form for inserting a new item. Registered with `presentation: 'modal'` in the root `Stack`. On save, calls `router.dismissTo('/')` so the user lands on Portfolio regardless of which tab the FAB was tapped from.
+- `app/add.tsx` — modal-presented form for inserting **or editing** an item. Registered with `presentation: 'modal'` in the root `Stack`. The same component handles both modes: if launched with an `id` search param (`router.push({ pathname: '/add', params: { id } })`), it pre-fills the form via a one-shot `SELECT` and runs `UPDATE` on save, then `router.back()` to return to the detail screen. With no `id` it runs `INSERT` and `router.dismissTo('/')` to land on Portfolio.
+- `app/item/[id].tsx` — stack-pushed detail screen for a single item. The `[id]` segment is Expo Router's syntax for a dynamic route parameter, read with `useLocalSearchParams<{ id: string }>()`. Sets its own header title via `<Stack.Screen options={{ title: item.name }} />` from inside the component. Refreshes via `useFocusEffect`, so edits made through the modal show up when the user lands back here.
 
 Typed routes are enabled (`experiments.typedRoutes` in `app.json`), so `router.push('/some-route')` is type-checked against the actual files in `app/`. If you add a screen, the type for that path appears automatically.
 
@@ -61,6 +62,13 @@ There is no toast library — instead, a tiny in-house pattern:
 - `lib/toast.ts` exposes `showToast(message)` and a `setToastListener(fn)` setter. It's a singleton listener slot, not a context, so any code (including non-React modules) can fire a toast with a plain function call.
 - `components/toast.tsx` exports `<ToastHost />`, which subscribes via `setToastListener`, animates in/out with `Animated`, and renders absolute-positioned text near the top safe-area inset. It's mounted once in `app/_layout.tsx` outside the `Stack` so it overlays modals and tabs alike.
 - To show a toast from anywhere: `import { showToast } from '@/lib/toast'; showToast('Item saved');`. Don't try to render `<Toast>` in screens directly.
+
+### Format helpers
+
+`lib/format.ts` holds small, pure formatters. Use these instead of inlining `toFixed(2)` or `Date` math in screens — both Portfolio and the item detail screen read from them, and they're trivially unit-testable later.
+
+- `formatMoney(value)` — turns a `number | null | undefined` into a `$0.00` string. `null`/`undefined` becomes `$0.00`, not `'—'`; if you want a dash for missing values, do `value == null ? '—' : formatMoney(value)`.
+- `daysHeld(acquiredDate)` — takes a `YYYY-MM-DD` string and returns the integer number of whole days since that date, or `null` if the input is missing or unparseable. Anchored to local midnight, so it doesn't drift across timezones.
 
 ### Forms (patterns from `app/add.tsx`)
 

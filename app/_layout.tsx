@@ -27,6 +27,7 @@ export default function RootLayout() {
               name="add"
               options={{ presentation: 'modal', title: 'Add item' }}
             />
+            <Stack.Screen name="item/[id]" options={{ headerBackTitle: 'Back' }} />
           </Stack>
           <ToastHost />
           <StatusBar style="auto" />
