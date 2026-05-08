@@ -32,7 +32,8 @@ export default function SaleDetailScreen() {
                   items.name AS item_name,
                   items."set" AS item_set,
                   items.cost_basis AS item_cost_basis,
-                  items.is_graded AS item_is_graded
+                  items.is_graded AS item_is_graded,
+                  items.photo_uri AS item_photo_uri
            FROM sales
            LEFT JOIN items ON items.id = sales.item_id
            WHERE sales.id = ?
