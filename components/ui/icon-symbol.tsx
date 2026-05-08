@@ -22,6 +22,7 @@ const MAPPING = {
   'dollarsign.circle.fill': 'attach-money',
   'chart.bar.fill': 'bar-chart',
   'arrow.clockwise': 'refresh',
+  'square.and.arrow.up': 'share',
 } as IconMapping;
 
 /**

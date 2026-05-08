@@ -86,6 +86,25 @@ Network code lives under `lib/api/`. Keep it pure: a function that takes inputs 
 
 The Portfolio tab's "Refresh Prices" button is the consumer pattern: per-item `try/catch`, sequential loop (one fetch at a time so we don't burst-rate-limit the public API), per-item UPDATE only when a real price comes back, single summary toast at the end. **Do not** add a second toast per failed item — the toast would queue up and overwhelm the user.
 
+### CSV export (`lib/csv.ts`)
+
+`buildSalesCsv(db)` runs the export query (sales LEFT JOIN items, `ORDER BY sales.sold_date ASC, sales.id ASC` so accountants get oldest-first), formats every row, escapes any cell containing a comma/quote/newline (RFC 4180 doubling), and returns a string. Uses its own SELECT — **don't** rely on `SaleWithItem`, since the export needs `items.source` and `items.acquired_date` which aren't on that shared type.
+
+Conventions to keep accountants and spreadsheets happy:
+
+- Money columns are plain `n.toFixed(2)` — **no `$`**, no thousands separators. The `formatMoney` helper from `lib/format.ts` adds the `$` sign and is for UI only; CSV uses a private `plainMoney` helper.
+- Dates ship as the stored ISO `YYYY-MM-DD` string. Don't format with `toLocaleDateString` — that varies by device locale and breaks downstream tools.
+- `null` becomes an empty string, not `'—'` and not the literal `null`.
+
+The Dashboard's "Export for Taxes" card is the only consumer:
+
+1. Guard `sales.length === 0` → fire `Alert.alert('No sales to export yet.')`.
+2. Build CSV → write to `${FileSystem.cacheDirectory}flipdex-sales-${year}.csv` via `expo-file-system/legacy` (the legacy function-style API; the SDK 54 default `expo-file-system` exposes a `File`/`Paths` class API that's heavier for one-shot writes).
+3. Fire `showToast('Export started')` *before* opening the share sheet so the toast is visible during the system animation.
+4. Open `Sharing.shareAsync(path, ...)` — the user picks Mail / Files / Messages / etc.
+
+Wrap the whole thing in `try/catch` and surface failures with `Alert.alert`. Don't try to recover from a write/share failure — the user can just retry.
+
 ### Format helpers
 
 `lib/format.ts` holds small, pure formatters and input sanitizers. Use these instead of inlining `toFixed(2)` or `Date` math in screens — Portfolio, the item detail screen, the Add form, and the Mark-as-Sold form all read from them, and they're trivially unit-testable later.
