@@ -17,7 +17,7 @@ export default function PortfolioScreen() {
       (async () => {
         const rows = await db.getAllAsync<Item>(
           'SELECT * FROM items WHERE status = ? OR status IS NULL ORDER BY id DESC',
-          ['holding']
+          ['active']
         );
         if (!cancelled) setItems(rows);
       })();

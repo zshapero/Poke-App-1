@@ -50,7 +50,7 @@ export default function TabLayout() {
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Add item"
-        onPress={() => router.push('/add-item')}
+        onPress={() => router.push('/add')}
         style={({ pressed }) => [
           styles.fab,
           { bottom: TAB_BAR_HEIGHT + insets.bottom + 16 },

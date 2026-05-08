@@ -6,6 +6,7 @@ import { Suspense } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import 'react-native-reanimated';
 
+import { ToastHost } from '@/components/toast';
 import { DATABASE_NAME, migrate } from '@/db/schema';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
@@ -23,10 +24,11 @@ export default function RootLayout() {
           <Stack>
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen
-              name="add-item"
+              name="add"
               options={{ presentation: 'modal', title: 'Add item' }}
             />
           </Stack>
+          <ToastHost />
           <StatusBar style="auto" />
         </SQLiteProvider>
       </Suspense>
