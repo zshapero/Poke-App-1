@@ -1,17 +1,29 @@
+import * as FileSystem from 'expo-file-system/legacy';
 import { Link, useFocusEffect } from 'expo-router';
+import * as Sharing from 'expo-sharing';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useCallback, useMemo, useState } from 'react';
-import { Dimensions, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import {
+  Alert,
+  Dimensions,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+} from 'react-native';
 import { BarChart, PieChart } from 'react-native-gifted-charts';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { IconSymbol } from '@/components/ui/icon-symbol';
 import type { SaleWithItem } from '@/db/schema';
+import { buildSalesCsv } from '@/lib/csv';
 import {
   formatMoney,
   formatSignedMoney,
   formatSignedPercent,
 } from '@/lib/format';
+import { showToast } from '@/lib/toast';
 
 const PLATFORM_COLORS: Record<string, string> = {
   eBay: '#0a7ea4',
@@ -115,6 +127,36 @@ export default function DashboardScreen() {
   );
 
   const hasSales = sales.length > 0;
+  const [exporting, setExporting] = useState(false);
+
+  const onExportCsv = async () => {
+    if (exporting) return;
+    if (sales.length === 0) {
+      Alert.alert('No sales to export yet.');
+      return;
+    }
+    setExporting(true);
+    try {
+      const csv = await buildSalesCsv(db);
+      const filename = `flipdex-sales-${new Date().getFullYear()}.csv`;
+      const path = `${FileSystem.cacheDirectory}${filename}`;
+      await FileSystem.writeAsStringAsync(path, csv);
+      showToast('Export started');
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(path, {
+          mimeType: 'text/csv',
+          dialogTitle: 'Export sales',
+          UTI: 'public.comma-separated-values-text',
+        });
+      } else {
+        Alert.alert('Sharing not available', `File saved to ${path}`);
+      }
+    } catch (err) {
+      Alert.alert('Export failed', String(err));
+    } finally {
+      setExporting(false);
+    }
+  };
 
   return (
     <ThemedView style={styles.container}>
@@ -272,6 +314,28 @@ export default function DashboardScreen() {
             </View>
           </>
         )}
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Export sales as CSV"
+          onPress={onExportCsv}
+          disabled={exporting}
+          style={({ pressed }) => [
+            styles.exportCard,
+            exporting && styles.exportCardDisabled,
+            pressed && !exporting && styles.exportCardPressed,
+          ]}>
+          <View style={styles.exportIcon}>
+            <IconSymbol name="square.and.arrow.up" size={22} color="#0a7ea4" />
+          </View>
+          <View style={styles.exportText}>
+            <ThemedText type="defaultSemiBold">Export for Taxes</ThemedText>
+            <ThemedText style={styles.exportSubtext}>
+              Save a CSV of every sale to email or send to your accountant.
+            </ThemedText>
+          </View>
+          <IconSymbol name="chevron.right" size={20} color="#0a7ea4" />
+        </Pressable>
       </ScrollView>
     </ThemedView>
   );
@@ -465,4 +529,26 @@ const styles = StyleSheet.create({
   topName: { flex: 1, gap: 2 },
   topProfit: { fontSize: 16, fontWeight: '600' },
   muted: {},
+  exportCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#eee',
+    backgroundColor: '#fafafa',
+  },
+  exportCardPressed: { opacity: 0.85 },
+  exportCardDisabled: { opacity: 0.5 },
+  exportIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#e6f4fb',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  exportText: { flex: 1, gap: 2 },
+  exportSubtext: { fontSize: 13 },
 });
