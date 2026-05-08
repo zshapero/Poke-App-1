@@ -28,7 +28,11 @@ export type Sale = {
   days_held: number | null;
 };
 
-export type SaleWithItem = Sale & { item_name: string | null };
+export type SaleWithItem = Sale & {
+  item_name: string | null;
+  item_set: string | null;
+  item_cost_basis: number | null;
+};
 
 const SCHEMA_VERSION = 2;
 
