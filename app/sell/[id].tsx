@@ -303,7 +303,7 @@ function MoneyInput({
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   container: { padding: 20, gap: 16, paddingBottom: 40 },
-  itemSummary: { opacity: 0.7 },
+  itemSummary: {},
   error: { color: '#c0392b' },
   field: { gap: 6 },
   required: { color: '#c0392b' },
@@ -348,11 +348,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
   },
-  netLabel: { opacity: 0.7, fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.5 },
+  netLabel: { fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.5 },
   netValue: { fontSize: 32 },
   netPositive: { color: '#16a34a' },
   netNegative: { color: '#dc2626' },
-  netFormula: { fontSize: 12, opacity: 0.5, marginTop: 2 },
+  netFormula: { fontSize: 12, marginTop: 2 },
   saveButton: {
     marginTop: 4,
     backgroundColor: '#0a7ea4',
@@ -364,7 +364,7 @@ const styles = StyleSheet.create({
   saveButtonPressed: { opacity: 0.85 },
   saveButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
   cancel: { alignItems: 'center', paddingVertical: 12 },
-  cancelText: { opacity: 0.7 },
+  cancelText: {},
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',

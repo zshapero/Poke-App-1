@@ -175,7 +175,6 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     fontSize: 12,
-    opacity: 0.5,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 4,
@@ -186,7 +185,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 8,
   },
-  mathLabel: { opacity: 0.7 },
+  mathLabel: {},
   divider: {
     height: StyleSheet.hairlineWidth,
     backgroundColor: '#bbb',
@@ -212,5 +211,5 @@ const styles = StyleSheet.create({
   },
   viewItemPressed: { opacity: 0.85 },
   viewItemText: { color: '#0a7ea4', fontSize: 16, fontWeight: '600' },
-  muted: { opacity: 0.6 },
+  muted: {},
 });

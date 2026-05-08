@@ -373,7 +373,7 @@ function buildPlatformPie(sales: SaleWithItem[]): PieDatum[] {
   });
 }
 
-const chartAxisTextStyle = { color: '#666', fontSize: 11 };
+const chartAxisTextStyle = { color: '#111', fontSize: 11 };
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
@@ -400,7 +400,6 @@ const styles = StyleSheet.create({
   },
   statLabel: {
     fontSize: 11,
-    opacity: 0.6,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -417,7 +416,6 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     fontSize: 12,
-    opacity: 0.5,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 4,
@@ -432,7 +430,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   emptyTitle: { fontSize: 16 },
-  emptyText: { textAlign: 'center', opacity: 0.6 },
+  emptyText: { textAlign: 'center' },
   pieRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -442,7 +440,6 @@ const styles = StyleSheet.create({
   pieCenter: { alignItems: 'center', gap: 2 },
   pieCenterLabel: {
     fontSize: 10,
-    opacity: 0.6,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -451,7 +448,7 @@ const styles = StyleSheet.create({
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   legendSwatch: { width: 12, height: 12, borderRadius: 3 },
   legendName: { flex: 1 },
-  legendValue: { opacity: 0.7, fontSize: 13 },
+  legendValue: { fontSize: 13 },
   topRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -462,11 +459,10 @@ const styles = StyleSheet.create({
   topRank: {
     width: 24,
     textAlign: 'center',
-    opacity: 0.4,
     fontSize: 16,
     fontWeight: '600',
   },
   topName: { flex: 1, gap: 2 },
   topProfit: { fontSize: 16, fontWeight: '600' },
-  muted: { opacity: 0.6 },
+  muted: {},
 });

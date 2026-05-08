@@ -165,7 +165,7 @@ const styles = StyleSheet.create({
   header: { paddingHorizontal: 16, gap: 12 },
   statsRow: { flexDirection: 'row', gap: 24, marginTop: 4 },
   stat: { gap: 2 },
-  statLabel: { fontSize: 12, opacity: 0.6, textTransform: 'uppercase', letterSpacing: 0.5 },
+  statLabel: { fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5 },
   statValue: { fontSize: 20 },
   search: {
     borderWidth: 1,
@@ -190,7 +190,7 @@ const styles = StyleSheet.create({
     borderColor: '#0a7ea4',
     backgroundColor: '#0a7ea4',
   },
-  chipText: { color: '#333', fontSize: 13 },
+  chipText: { color: '#111', fontSize: 13 },
   chipTextActive: { color: '#fff', fontSize: 13, fontWeight: '600' },
   list: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 160, gap: 8 },
   row: {
@@ -207,7 +207,7 @@ const styles = StyleSheet.create({
   rowPressed: { opacity: 0.7 },
   rowMain: { flex: 1, gap: 4 },
   rowMeta: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap' },
-  muted: { opacity: 0.6 },
+  muted: {},
   badge: {
     backgroundColor: '#e6f4fb',
     paddingHorizontal: 10,
@@ -216,5 +216,5 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   badgeText: { color: '#0a7ea4', fontSize: 12, fontWeight: '600' },
-  empty: { textAlign: 'center', marginTop: 48, opacity: 0.6 },
+  empty: { textAlign: 'center', marginTop: 48 },
 });
