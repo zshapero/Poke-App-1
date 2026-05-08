@@ -1,9 +1,9 @@
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
-import { useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -18,6 +18,7 @@ import {
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import type { Item } from '@/db/schema';
 import { showToast } from '@/lib/toast';
 
 const SOURCES = ['Box Pull', 'Single Buy', 'Bulk', 'Estate Sale', 'Trade', 'Other'] as const;
@@ -44,6 +45,9 @@ function sanitizeMoneyInput(text: string): string {
 export default function AddItemScreen() {
   const db = useSQLiteContext();
   const router = useRouter();
+  const { id: idParam } = useLocalSearchParams<{ id?: string }>();
+  const editingId = idParam ? Number(idParam) : null;
+  const isEdit = editingId !== null && !Number.isNaN(editingId);
 
   const [name, setName] = useState('');
   const [setName_, setSetName] = useState('');
@@ -54,6 +58,37 @@ export default function AddItemScreen() {
   const [sourceModalOpen, setSourceModalOpen] = useState(false);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [hydrated, setHydrated] = useState(!isEdit);
+
+  useEffect(() => {
+    if (!isEdit || editingId === null) return;
+    let cancelled = false;
+    (async () => {
+      const row = await db.getFirstAsync<Item>(
+        'SELECT * FROM items WHERE id = ? LIMIT 1',
+        [editingId]
+      );
+      if (cancelled || !row) {
+        if (!cancelled) setHydrated(true);
+        return;
+      }
+      setName(row.name);
+      setSetName(row.set ?? '');
+      setCostBasis(row.cost_basis != null ? row.cost_basis.toFixed(2) : '');
+      if (row.acquired_date) {
+        const parsed = new Date(`${row.acquired_date}T00:00:00`);
+        if (!Number.isNaN(parsed.getTime())) setAcquiredDate(parsed);
+      }
+      if (row.source && (SOURCES as readonly string[]).includes(row.source)) {
+        setSource(row.source as Source);
+      }
+      setPhotoUri(row.photo_uri);
+      setHydrated(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [db, editingId, isEdit]);
 
   const canSave = useMemo(() => {
     const cost = parseFloat(costBasis);
@@ -112,22 +147,41 @@ export default function AddItemScreen() {
     if (!canSave || saving) return;
     setSaving(true);
     try {
-      await db.runAsync(
-        `INSERT INTO items (name, "set", cost_basis, acquired_date, source, photo_uri, status, current_price)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          name.trim(),
-          setName_.trim(),
-          parseFloat(costBasis),
-          toIsoDate(acquiredDate),
-          source,
-          photoUri,
-          'active',
-          null,
-        ]
-      );
-      showToast('Item saved');
-      router.dismissTo('/');
+      if (isEdit && editingId !== null) {
+        await db.runAsync(
+          `UPDATE items
+             SET name = ?, "set" = ?, cost_basis = ?, acquired_date = ?, source = ?, photo_uri = ?
+           WHERE id = ?`,
+          [
+            name.trim(),
+            setName_.trim(),
+            parseFloat(costBasis),
+            toIsoDate(acquiredDate),
+            source,
+            photoUri,
+            editingId,
+          ]
+        );
+        showToast('Item updated');
+        router.back();
+      } else {
+        await db.runAsync(
+          `INSERT INTO items (name, "set", cost_basis, acquired_date, source, photo_uri, status, current_price)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            name.trim(),
+            setName_.trim(),
+            parseFloat(costBasis),
+            toIsoDate(acquiredDate),
+            source,
+            photoUri,
+            'active',
+            null,
+          ]
+        );
+        showToast('Item saved');
+        router.dismissTo('/');
+      }
     } catch (err) {
       Alert.alert('Could not save', String(err));
     } finally {
@@ -140,8 +194,12 @@ export default function AddItemScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       style={styles.flex}>
       <ThemedView style={styles.flex}>
+        <Stack.Screen options={{ title: isEdit ? 'Edit item' : 'Add item' }} />
         <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-          <ThemedText type="title">Add item</ThemedText>
+          <ThemedText type="title">{isEdit ? 'Edit item' : 'Add item'}</ThemedText>
+          {isEdit && !hydrated ? (
+            <ThemedText style={styles.placeholderText}>Loading…</ThemedText>
+          ) : null}
 
           <Field label="Name" required>
             <TextInput
@@ -232,7 +290,9 @@ export default function AddItemScreen() {
               (!canSave || saving) && styles.saveButtonDisabled,
               pressed && canSave && !saving && styles.saveButtonPressed,
             ]}>
-            <ThemedText style={styles.saveButtonText}>{saving ? 'Saving…' : 'Save'}</ThemedText>
+            <ThemedText style={styles.saveButtonText}>
+              {saving ? 'Saving…' : isEdit ? 'Update' : 'Save'}
+            </ThemedText>
           </Pressable>
 
           <Pressable onPress={() => router.back()} style={styles.cancel}>
