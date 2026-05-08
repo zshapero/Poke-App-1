@@ -8,7 +8,6 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import type { Item } from '@/db/schema';
 import { daysHeld, formatMoney } from '@/lib/format';
-import { showToast } from '@/lib/toast';
 
 export default function ItemDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -106,13 +105,19 @@ export default function ItemDetailScreen() {
             <ThemedText style={styles.editButtonText}>Edit</ThemedText>
           </Pressable>
           <Pressable
-            onPress={() => showToast('Mark as Sold — coming soon')}
+            onPress={() =>
+              router.push({ pathname: '/sell/[id]', params: { id: String(item.id) } })
+            }
+            disabled={item.status === 'sold'}
             style={({ pressed }) => [
               styles.button,
               styles.soldButton,
-              pressed && styles.buttonPressed,
+              item.status === 'sold' && styles.buttonDisabled,
+              pressed && item.status !== 'sold' && styles.buttonPressed,
             ]}>
-            <ThemedText style={styles.soldButtonText}>Mark as Sold</ThemedText>
+            <ThemedText style={styles.soldButtonText}>
+              {item.status === 'sold' ? 'Already sold' : 'Mark as Sold'}
+            </ThemedText>
           </Pressable>
         </View>
       </ScrollView>
@@ -164,6 +169,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   buttonPressed: { opacity: 0.85 },
+  buttonDisabled: { opacity: 0.4 },
   editButton: { backgroundColor: '#0a7ea4' },
   editButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
   soldButton: {

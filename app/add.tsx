@@ -19,28 +19,15 @@ import {
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import type { Item } from '@/db/schema';
+import {
+  formatDateForDisplay,
+  sanitizeMoneyInput,
+  toIsoDate,
+} from '@/lib/format';
 import { showToast } from '@/lib/toast';
 
 const SOURCES = ['Box Pull', 'Single Buy', 'Bulk', 'Estate Sale', 'Trade', 'Other'] as const;
 type Source = (typeof SOURCES)[number];
-
-function toIsoDate(d: Date): string {
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
-function formatDateForDisplay(d: Date): string {
-  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
-}
-
-function sanitizeMoneyInput(text: string): string {
-  const cleaned = text.replace(/[^0-9.]/g, '');
-  const [head, ...rest] = cleaned.split('.');
-  if (rest.length === 0) return head;
-  return `${head}.${rest.join('').slice(0, 2)}`;
-}
 
 export default function AddItemScreen() {
   const db = useSQLiteContext();

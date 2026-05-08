@@ -25,40 +25,66 @@ export type Sale = {
   shipping: number | null;
   sold_date: string | null;
   net_profit: number | null;
+  days_held: number | null;
 };
 
 export type SaleWithItem = Sale & { item_name: string | null };
 
+const SCHEMA_VERSION = 2;
+
 export async function migrate(db: SQLiteDatabase): Promise<void> {
-  await db.execAsync(`
-    PRAGMA journal_mode = WAL;
-    PRAGMA foreign_keys = ON;
+  // Pragmas are session-scoped, so set every time the DB is opened.
+  await db.execAsync(`PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;`);
 
-    CREATE TABLE IF NOT EXISTS items (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      "set" TEXT,
-      cost_basis REAL,
-      acquired_date TEXT,
-      source TEXT,
-      photo_uri TEXT,
-      status TEXT,
-      current_price REAL
+  const row = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
+  let version = row?.user_version ?? 0;
+
+  if (version < 1) {
+    // v1: initial schema. Note that `set` is quoted because it's a soft
+    // SQL keyword. Don't drop the quotes if you write new queries.
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        "set" TEXT,
+        cost_basis REAL,
+        acquired_date TEXT,
+        source TEXT,
+        photo_uri TEXT,
+        status TEXT,
+        current_price REAL
+      );
+
+      CREATE TABLE IF NOT EXISTS sales (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        item_id INTEGER NOT NULL,
+        sale_price REAL,
+        platform TEXT,
+        fees REAL,
+        shipping REAL,
+        sold_date TEXT,
+        net_profit REAL,
+        FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_sales_item_id ON sales(item_id);
+      CREATE INDEX IF NOT EXISTS idx_items_status ON items(status);
+    `);
+    version = 1;
+  }
+
+  if (version < 2) {
+    // v2: capture how long an item was held when a sale is recorded.
+    await db.execAsync(`ALTER TABLE sales ADD COLUMN days_held INTEGER`);
+    version = 2;
+  }
+
+  if (version !== SCHEMA_VERSION) {
+    throw new Error(
+      `Schema migrator finished at version ${version}, expected ${SCHEMA_VERSION}. ` +
+        `Did you add an if-block but forget to bump SCHEMA_VERSION?`
     );
+  }
 
-    CREATE TABLE IF NOT EXISTS sales (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      item_id INTEGER NOT NULL,
-      sale_price REAL,
-      platform TEXT,
-      fees REAL,
-      shipping REAL,
-      sold_date TEXT,
-      net_profit REAL,
-      FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_sales_item_id ON sales(item_id);
-    CREATE INDEX IF NOT EXISTS idx_items_status ON items(status);
-  `);
+  await db.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION}`);
 }
