@@ -31,23 +31,35 @@ Every file under `app/` is a route. The file path *is* the URL.
 - `app/(tabs)/index.tsx`, `sales.tsx`, `dashboard.tsx` — the three tab screens. **Portfolio is `index.tsx`** so it resolves the `/` route when the app cold-starts; without an `index.tsx` here, Expo Router shows "Unmatched Route" because nothing claims `/`. Its `<Tabs.Screen>` is registered with `name="index"` and `title: 'Portfolio'`. The order of `<Tabs.Screen>` declarations in `_layout.tsx` controls tab order; the first one is the default.
 - `app/add.tsx` — modal-presented form for inserting **or editing** an item. Registered with `presentation: 'modal'` in the root `Stack`. The same component handles both modes: if launched with an `id` search param (`router.push({ pathname: '/add', params: { id } })`), it pre-fills the form via a one-shot `SELECT` and runs `UPDATE` on save, then `router.back()` to return to the detail screen. With no `id` it runs `INSERT` and `router.dismissTo('/')` to land on Portfolio.
 - `app/item/[id].tsx` — stack-pushed detail screen for a single item. The `[id]` segment is Expo Router's syntax for a dynamic route parameter, read with `useLocalSearchParams<{ id: string }>()`. Sets its own header title via `<Stack.Screen options={{ title: item.name }} />` from inside the component. Refreshes via `useFocusEffect`, so edits made through the modal show up when the user lands back here.
+- `app/sell/[id].tsx` — modal-presented form that records a sale and flips the item's status to `'sold'`. Wraps both writes (UPDATE items + INSERT sales) in `db.withTransactionAsync(...)` so they commit or roll back together — never leave the DB with a sold item missing its sale row, or vice-versa.
 
 Typed routes are enabled (`experiments.typedRoutes` in `app.json`), so `router.push('/some-route')` is type-checked against the actual files in `app/`. If you add a screen, the type for that path appears automatically.
 
 ### Database (`expo-sqlite`)
 
-- `db/schema.ts` — the single source of truth: exports `DATABASE_NAME`, the `migrate(db)` function with all `CREATE TABLE IF NOT EXISTS` statements, and TypeScript types (`Item`, `Sale`, `SaleWithItem`, `ItemStatus`) that mirror the table columns one-to-one.
+- `db/schema.ts` — the single source of truth: exports `DATABASE_NAME`, the `migrate(db)` function, the `SCHEMA_VERSION` constant, and TypeScript types (`Item`, `Sale`, `SaleWithItem`, `ItemStatus`) that mirror the table columns one-to-one.
 - The schema is applied via `<SQLiteProvider databaseName={DATABASE_NAME} onInit={migrate} useSuspense>` in `app/_layout.tsx`. `onInit` runs once when the DB is first opened.
 - Inside any screen or component, get the DB handle with `const db = useSQLiteContext()` and call `db.getAllAsync<T>(...)`, `db.getFirstAsync<T>(...)`, or `db.runAsync(...)`. All are async; pass parameters as a positional array (`?` placeholders) — never interpolate user input into the SQL string.
+- For multi-statement writes that must be atomic (e.g. UPDATE items + INSERT sales when marking sold), wrap them in `await db.withTransactionAsync(async () => { ... })`. SQLite handles BEGIN/COMMIT/ROLLBACK for you.
 - `set` is quoted as `"set"` in every query because it's a soft keyword in SQL. Keep it quoted if you write new queries against the `items` table.
-- Schema changes: bump the schema by adding a new `CREATE TABLE`/`ALTER TABLE` to `migrate`. Because we use `IF NOT EXISTS`, additive changes are safe; for column changes you'll need a real migration step (read `PRAGMA user_version` and branch). There is no migration framework yet — add one if the schema starts moving.
+
+### Migrations
+
+`db/schema.ts` uses `PRAGMA user_version` to track which version the on-device DB has reached. The `migrate()` function reads it once, then runs each `if (version < N) { ... ; version = N; }` block in order, finally writing the new `user_version` back. Rules:
+
+- **Never edit a past version's block** once it has shipped. Add a new `if (version < N+1) { ... }` block instead.
+- **Bump `SCHEMA_VERSION`** to match the highest block. The migrator throws if it ends below `SCHEMA_VERSION`, which catches "I added a block but forgot to bump the constant" early.
+- For additive column changes use `ALTER TABLE x ADD COLUMN y TYPE` inside the new version block — that's how `days_held` was added to `sales` in v2.
+- For destructive changes (renaming/dropping columns) you'll need the SQLite copy-rename dance: create new table, copy rows, drop old, rename new. Don't try `ALTER TABLE ... DROP COLUMN` — SQLite versions in many React Native runtimes don't support it.
 
 ### Tables
 
 ```
 items (id, name, set, cost_basis, acquired_date, source, photo_uri, status, current_price)
-sales (id, item_id, sale_price, platform, fees, shipping, sold_date, net_profit)
+sales (id, item_id, sale_price, platform, fees, shipping, sold_date, net_profit, days_held)
 ```
+
+`days_held` is captured at sale time (sold_date − acquired_date in whole days) so the sales row freezes that snapshot — useful for historical reporting that shouldn't recompute against the (potentially edited) acquired_date later.
 
 `status` is the union `'active' | 'listed' | 'sold'`. New items inserted from the Add screen default to `'active'`, and the Portfolio tab filters on `status = 'active'` — if you add a new status value, update both the type in `db/schema.ts` and the WHERE clause in `app/(tabs)/index.tsx`. `sales.item_id` is a foreign key to `items.id` with `ON DELETE CASCADE` — deleting an item removes its sales too. Foreign keys are enabled in `migrate` via `PRAGMA foreign_keys = ON`.
 
@@ -65,10 +77,14 @@ There is no toast library — instead, a tiny in-house pattern:
 
 ### Format helpers
 
-`lib/format.ts` holds small, pure formatters. Use these instead of inlining `toFixed(2)` or `Date` math in screens — both Portfolio and the item detail screen read from them, and they're trivially unit-testable later.
+`lib/format.ts` holds small, pure formatters and input sanitizers. Use these instead of inlining `toFixed(2)` or `Date` math in screens — Portfolio, the item detail screen, the Add form, and the Mark-as-Sold form all read from them, and they're trivially unit-testable later.
 
-- `formatMoney(value)` — turns a `number | null | undefined` into a `$0.00` string. `null`/`undefined` becomes `$0.00`, not `'—'`; if you want a dash for missing values, do `value == null ? '—' : formatMoney(value)`.
+- `formatMoney(value)` — turns a `number | null | undefined` into a `$0.00` string. Negatives render as `-$1.50` (sign before the dollar). `null`/`undefined` becomes `$0.00`, not `'—'`; show a dash at the call site if you want one for missing values.
 - `daysHeld(acquiredDate)` — takes a `YYYY-MM-DD` string and returns the integer number of whole days since that date, or `null` if the input is missing or unparseable. Anchored to local midnight, so it doesn't drift across timezones.
+- `daysBetween(startIsoDate, end)` — same idea but with an explicit `Date` for the end. Used by the sell form to freeze `days_held` against the picked sold date, not "today".
+- `sanitizeMoneyInput(text)` — strips non-digits and caps decimals at 2. Run it inside every `onChangeText` for a `$` field so users can't type letters or two dots.
+- `toIsoDate(date)` — `Date` → `'YYYY-MM-DD'`. **Always store dates in SQLite via this** — never raw `Date` objects, never locale-formatted strings. ISO strings sort correctly and survive timezone shifts.
+- `formatDateForDisplay(date)` — `Date` → user-facing string (e.g. `'May 8, 2026'`). Only for display; never for storage.
 
 ### Forms (patterns from `app/add.tsx`)
 
