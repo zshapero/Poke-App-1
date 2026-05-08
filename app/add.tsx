@@ -394,7 +394,7 @@ const styles = StyleSheet.create({
   saveButtonPressed: { opacity: 0.85 },
   saveButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
   cancel: { alignItems: 'center', paddingVertical: 12 },
-  cancelText: { opacity: 0.7 },
+  cancelText: {},
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',

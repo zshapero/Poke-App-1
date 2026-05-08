@@ -217,7 +217,7 @@ const styles = StyleSheet.create({
   header: { paddingHorizontal: 16, gap: 12 },
   statsRow: { flexDirection: 'row', gap: 16, marginTop: 4, flexWrap: 'wrap' },
   stat: { gap: 2, minWidth: 100 },
-  statLabel: { fontSize: 12, opacity: 0.6, textTransform: 'uppercase', letterSpacing: 0.5 },
+  statLabel: { fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5 },
   statValue: { fontSize: 20 },
   profitPositive: { color: '#16a34a' },
   profitNegative: { color: '#dc2626' },
@@ -244,7 +244,7 @@ const styles = StyleSheet.create({
     borderColor: '#0a7ea4',
     backgroundColor: '#0a7ea4',
   },
-  chipText: { color: '#333', fontSize: 13 },
+  chipText: { color: '#111', fontSize: 13 },
   chipTextActive: { color: '#fff', fontSize: 13, fontWeight: '600' },
   list: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 160, gap: 8 },
   row: {
@@ -270,7 +270,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  muted: { opacity: 0.6 },
+  muted: {},
   badge: {
     backgroundColor: '#e6f4fb',
     paddingHorizontal: 10,
@@ -278,5 +278,5 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   badgeText: { color: '#0a7ea4', fontSize: 12, fontWeight: '600' },
-  empty: { textAlign: 'center', marginTop: 48, opacity: 0.6 },
+  empty: { textAlign: 'center', marginTop: 48 },
 });

@@ -160,7 +160,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#ddd',
   },
-  fieldLabel: { opacity: 0.6 },
+  fieldLabel: {},
   buttons: { flexDirection: 'row', gap: 12, marginTop: 16 },
   button: {
     flex: 1,
@@ -178,5 +178,5 @@ const styles = StyleSheet.create({
     borderColor: '#0a7ea4',
   },
   soldButtonText: { color: '#0a7ea4', fontSize: 16, fontWeight: '600' },
-  muted: { opacity: 0.6 },
+  muted: {},
 });
