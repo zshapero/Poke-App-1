@@ -83,6 +83,7 @@ There is no toast library — instead, a tiny in-house pattern:
 - `formatMoney(value)` — turns a `number | null | undefined` into a `$0.00` string. Negatives render as `-$1.50` (sign before the dollar). `null`/`undefined` becomes `$0.00`, not `'—'`; show a dash at the call site if you want one for missing values.
 - `formatSignedMoney(value)` — like `formatMoney` but always shows a leading sign on non-zero values: `+$45.00` / `-$10.00` / `$0.00`. Use for **net profit** displays (Sales tab rows, sale detail, lifetime profit stat); use plain `formatMoney` for prices, costs, fees, shipping, totals.
 - `formatIsoForDisplay(iso)` — `'2026-03-15'` → `'Mar 15, 2026'`. Returns `'—'` for null/undefined and falls back to the raw string for unparseable input. Use this in lists/details that read a stored `YYYY-MM-DD`.
+- `formatSignedPercent(value)` — `+20.0%` / `-60.0%` / `0.0%`. Returns `'—'` for `null`/`NaN`. Used for the Dashboard's avg-margin stat.
 - `daysHeld(acquiredDate)` — takes a `YYYY-MM-DD` string and returns the integer number of whole days since that date, or `null` if the input is missing or unparseable. Anchored to local midnight, so it doesn't drift across timezones.
 - `daysBetween(startIsoDate, end)` — same idea but with an explicit `Date` for the end. Used by the sell form to freeze `days_held` against the picked sold date, not "today".
 - `sanitizeMoneyInput(text)` — strips non-digits and caps decimals at 2. Run it inside every `onChangeText` for a `$` field so users can't type letters or two dots.
@@ -96,6 +97,15 @@ There is no toast library — instead, a tiny in-house pattern:
 - **Date inputs**: `@react-native-community/datetimepicker`. Display the date as a tappable row showing the formatted date; on tap, render `<DateTimePicker mode="date">`. On Android the picker auto-dismisses after selection; on iOS use `display="inline"` with a "Done" row to dismiss. Always store dates as ISO `YYYY-MM-DD` strings in SQLite — never the full Date or a locale-formatted string.
 - **Single-select dropdowns**: a `<Pressable>` opens a `<Modal transparent animationType="fade">` with a backdrop; the inner sheet uses `e.stopPropagation()` so taps inside the sheet don't dismiss it. The 6-option Source picker is the example.
 - **Photo input**: `expo-image-picker`. The "+ Add photo" button calls `Alert.alert` with three actions (Take Photo / Choose from Library / Cancel), then calls `launchCameraAsync` or `launchImageLibraryAsync` accordingly. Camera requires `requestCameraPermissionsAsync` first; library picker handles its own prompt. The permission strings live in the `expo-image-picker` plugin block in `app.json` — always update both iOS keys (`photosPermission`, `cameraPermission`) when changing copy.
+
+### Charts (`react-native-gifted-charts`)
+
+The Dashboard tab uses `BarChart` and `PieChart` from `react-native-gifted-charts`. Pinned via `npx expo install` so versions match the SDK.
+
+- **Peer dependencies**: `react-native-svg` (bundled in Expo Go) **and** `react-native-linear-gradient` (NOT bundled in Expo Go). The latter has a static import inside gifted-charts that runs at JS-module-load time, even if you never use gradient props. **The Dashboard tab will crash in Expo Go for that reason** — to view it, run a development build: `npx expo prebuild && npx expo run:ios` (or `run:android`). The other tabs work fine in Expo Go.
+- **Pie charts can't render negative slices.** `buildPlatformPie` in `app/(tabs)/dashboard.tsx` filters to platforms with strictly positive total profit. If everything is a loss, the pie card shows "No platform has positive profit yet" instead of a broken chart. If you add another chart type later, plan for the negative-value case explicitly — don't just pass raw aggregates.
+- **Bar charts need fixed-shape data, not just sums.** `buildMonthlyBars` always returns 6 buckets (current month + 5 prior), even if some are `$0` — otherwise a quiet month would silently disappear from the time series and skew how you read the trend.
+- **Chart width is computed from `Dimensions.get('window').width`** minus the screen's outer padding and the card's inner padding. If you change those styles, update the `CHART_WIDTH` constant in `dashboard.tsx`.
 
 ### Theming and shared UI
 

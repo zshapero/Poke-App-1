@@ -11,6 +11,13 @@ export function formatSignedMoney(value: number | null | undefined): string {
   return '$0.00';
 }
 
+export function formatSignedPercent(value: number | null | undefined): string {
+  if (value == null || Number.isNaN(value)) return '—';
+  if (value > 0) return `+${value.toFixed(1)}%`;
+  if (value < 0) return `-${Math.abs(value).toFixed(1)}%`;
+  return '0.0%';
+}
+
 export function formatIsoForDisplay(iso: string | null | undefined): string {
   if (!iso) return '—';
   const d = new Date(`${iso}T00:00:00`);
